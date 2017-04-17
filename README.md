@@ -44,6 +44,37 @@ Use "kafkaconnectcli help [command]" for more information about that command.
 
 ```
 
+## Confluent Schema registry
+
+A simple Command line interface (CLI) to manage [Confluent](http://docs.confluent.io/current/schema-registry/docs/api.html) Schema Registry.
+
+### Install and build packages
+```bash
+go get github.com/fhussonnois/kafkacli/cmd/schemaregistrycli
+```
+
+### Run command
+```bash
+./bin/schemaregistrycli
+```
+
+### Usage
+
+```bash
+A simple Command line interface (CLI) to manage Confluent Schema Registry.
+
+Usage of ./bin/schemaregistrycli: command [arguments] 
+The commands are : 
+
+	global-compatibility	Getting the global compatibility level.
+	compatibility		Getting subject compatibility level for a subject.
+	schema			Getting a specific version of the schema registered under this subject
+	subjects		Getting the list of registered subjects.
+	versions		Getting a list of versions registered under the specified subject.
+
+Use "schemaregistrycli help [command]" for more information about that command.
+```
+
 ## Contributions
 Any contribution is welcome
 
