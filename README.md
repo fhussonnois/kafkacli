@@ -7,30 +7,38 @@ Kafka CLI
 
 A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.
 
+### Install and build packages
+```bash
+go get github.com/fhussonnois/kafkacli/cmd/kafkaconnectcli
+```
+
+### Run command
+```bash
+./bin/kafkaconnectcli
+```
+
 ### Usage
 
 ```bash
-./kafkaconnectcli
-
 A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.
 
 Usage of ./bin/kafkaconnectcli: command [arguments] 
 The commands are : 
 
-	list		Listing active connectors on a worker.
-	config		Getting connector configuration.
-	create		Creating a new connector.
-	delete		Deleting a connector.
-	delete-all	Deleting all connectors.
-	pause		Pausing a connector (useful if downtime is needed for the system the connector interacts with).
-	plugins		Listing installed connectors plugins.
-	resume		Restarting a connector.
-	restart-failed	Restarting failed tasks for a connector.
-	status		Getting connector status.
-	tasks		Getting tasks for a connector.
-	scale		Scaling up the number of tasks for a connector.
-	update		Updating connector configuration.
-	version		Getting a connect worker version.
+    list            Listing active connectors on a worker.
+    config          Getting connector configuration.
+    create          Creating a new connector.
+    delete          Deleting a connector.
+    delete-all      Deleting all connectors.
+    pause           Pausing a connector (useful if downtime is needed for the system the connector interacts with).
+    plugins         Listing installed connectors plugins.
+    resume          Restarting a connector.
+    restart-failed  Restarting failed tasks for a connector.
+    status          Getting connector status.
+    tasks           Getting tasks for a connector.
+    scale           Scaling up the number of tasks for a connector.
+    update          Updating connector configuration.
+    version         Getting a connect worker version.
 
 Use "kafkaconnectcli help [command]" for more information about that command.
 

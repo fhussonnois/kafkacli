@@ -17,13 +17,13 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"flag"
+	"fmt"
+	"github.com/fhussonnois/kafkacli/connect"
 	"os"
 	"regexp"
-	"encoding/json"
 	"strings"
-	"github.com/fhussonnois/kafkacli/connect"
 )
 
 type Matcher func(string) bool
@@ -38,7 +38,7 @@ func findMatchingConnectors(client connect.ConnectRestClient, fn Matcher) []stri
 		panic(err)
 	}
 	for _, conn := range activeConnectors {
-		if (fn(conn)) {
+		if fn(conn) {
 			matchConnectors = append(matchConnectors, conn)
 		}
 	}
@@ -112,7 +112,7 @@ func main() {
 	var connector string
 
 	var client connect.ConnectRestClient
-	switch command{
+	switch command {
 	case "config", "status", "delete", "resume", "pause", "tasks", "restart-failed":
 		connectorCommand.Parse(os.Args[2:])
 		connector = *connectName
@@ -123,10 +123,10 @@ func main() {
 	case "delete-all", "plugins", "version":
 		commonCommand.Parse(os.Args[2:])
 		client = connect.NewConnectClient(*commonHost, *commonPort)
-	case "create" :
+	case "create":
 		createCommand.Parse(os.Args[2:])
 		client = connect.NewConnectClient(*configHost, *configPort)
-	case "scale" :
+	case "scale":
 		scaleCommand.Parse(os.Args[2:])
 		connector = *scaleName
 		client = connect.NewConnectClient(*scaleHost, *scalePort)
@@ -214,7 +214,9 @@ func main() {
 		config := client.GetConfig(*scaleName)
 		var connectConfig connect.ConnectorConfig
 		err := json.Unmarshal([]byte(config), &connectConfig)
-		if err != nil { panic(err) }
+		if err != nil {
+			panic(err)
+		}
 		connectConfig.Config["tasks.max"] = *scaleTasks
 		jsonConfig, _ := json.Marshal(connectConfig.Config)
 		fmt.Println(client.Update(*scaleName, string(jsonConfig)))
