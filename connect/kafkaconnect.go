@@ -1,7 +1,24 @@
+/**
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Simple Command line interface (CLI) to manage connectors though the Kafka Connect REST Interface.
+ *
+ **/
 package connect
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -69,13 +86,25 @@ func (client *ConnectRestClient) Plugins() string {
 }
 
 // Listing active connectors on a worker.
-func (client *ConnectRestClient) List() string {
-	return sendGetResponse("GET", client.connectEndPoint(), "")
+func (client *ConnectRestClient) List() []string {
+	response := sendGetResponse("GET", client.connectEndPoint(), "")
+	connectors := make([]string, 0)
+	err := json.Unmarshal([]byte(response), &connectors)
+	if err != nil {
+		panic(err)
+	}
+	return connectors
 }
 
 // Getting connector status.
-func (client *ConnectRestClient) Status(connector string) string {
-	return sendGetResponse("GET", client.connectEndPoint()+connector+"/status", "")
+func (client *ConnectRestClient) Status(connector string) ConnectorStatus {
+	response := sendGetResponse("GET", client.connectEndPoint()+connector+"/status", "")
+	var connectStatus ConnectorStatus
+	err := json.Unmarshal([]byte(response), &connectStatus)
+	if err != nil {
+		panic(err)
+	}
+	return connectStatus
 }
 
 // Getting tasks for a connector.
@@ -84,8 +113,14 @@ func (client *ConnectRestClient) Tasks(connector string) string {
 }
 
 // Getting connector configuration.
-func (client *ConnectRestClient) GetConfig(connector string) string {
-	return sendGetResponse("GET", client.connectEndPoint()+connector, "")
+func (client *ConnectRestClient) GetConfig(connector string) ConnectorConfig {
+	response := sendGetResponse("GET", client.connectEndPoint()+connector, "")
+	var config ConnectorConfig
+	err := json.Unmarshal([]byte(response), &config)
+	if err != nil {
+		panic(err)
+	}
+	return config
 }
 
 // Pausing a connector.

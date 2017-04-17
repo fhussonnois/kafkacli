@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fhussonnois/kafkacli/connect"
+	"github.com/fhussonnois/kafkacli/utils"
 	"os"
 	"regexp"
 	"strings"
@@ -30,29 +31,12 @@ type Matcher func(string) bool
 
 func findMatchingConnectors(client connect.ConnectRestClient, fn Matcher) []string {
 	var matchConnectors []string
-
-	connectorsString := client.List()
-	activeConnectors := make([]string, 0)
-	err := json.Unmarshal([]byte(connectorsString), &activeConnectors)
-	if err != nil {
-		panic(err)
-	}
-	for _, conn := range activeConnectors {
+	for _, conn := range client.List() {
 		if fn(conn) {
 			matchConnectors = append(matchConnectors, conn)
 		}
 	}
 	return matchConnectors
-}
-
-func getUnmarshalConnectStatus(client connect.ConnectRestClient, connector string) connect.ConnectorStatus {
-	jsonStatus := client.Status(connector)
-	var connectStatus connect.ConnectorStatus
-	err := json.Unmarshal([]byte(jsonStatus), &connectStatus)
-	if err != nil {
-		panic(err)
-	}
-	return connectStatus
 }
 
 func usage() {
@@ -82,27 +66,32 @@ func main() {
 	commonCommand := flag.NewFlagSet("Worker", flag.ExitOnError)
 	commonPort := commonCommand.Int("port", 8083, "The connector worker port. (Required)")
 	commonHost := commonCommand.String("host", "localhost", "The connector worker host address. (Required)")
+	commonPretty := commonCommand.Bool("pretty", false, "Pretty print json output.")
 
 	connectorCommand := flag.NewFlagSet("Connector", flag.ExitOnError)
 	connectName := connectorCommand.String("connector", "", "The connector name or a regex. (Required)")
 	connectPort := connectorCommand.Int("port", 8083, "The connector worker port.")
 	connectHost := connectorCommand.String("host", "localhost", "The connector worker host address.")
+	connectPretty := connectorCommand.Bool("pretty", false, "Pretty print json output.")
 
 	listCommand := flag.NewFlagSet("List", flag.ExitOnError)
 	listState := listCommand.String("with-state", "", "Filter on connector/task for the specified state [running|failed|paused|unassigned]")
 	listPort := listCommand.Int("port", 8083, "The connector worker port. (Required)")
 	listHost := listCommand.String("host", "localhost", "The connector worker host address. (Required)")
+	listPretty := listCommand.Bool("pretty", false, "Pretty print json output.")
 
 	createCommand := flag.NewFlagSet("Config", flag.ExitOnError)
-	configJson := createCommand.String("config", "", "The connector configuration. (Required)")
-	configPort := createCommand.Int("port", 8083, "The connector worker port.")
-	configHost := createCommand.String("host", "localhost", "The connector worker host address.")
+	createJson := createCommand.String("config", "", "The connector configuration. (Required)")
+	createPort := createCommand.Int("port", 8083, "The connector worker port.")
+	createHost := createCommand.String("host", "localhost", "The connector worker host address.")
+	createPretty := createCommand.Bool("pretty", false, "Pretty print json output.")
 
 	scaleCommand := flag.NewFlagSet("Scale", flag.ExitOnError)
 	scaleName := scaleCommand.String("connector", "", "The connector name. (Required)")
 	scaleTasks := scaleCommand.String("tasks-max", "", "The max number of tasks to update. (Required)")
 	scalePort := scaleCommand.Int("port", 8083, "The connector worker port.")
 	scaleHost := scaleCommand.String("host", "localhost", "The connector worker host address.")
+	scalePretty := scaleCommand.Bool("pretty", false, "Pretty print json output.")
 
 	if len(os.Args) < 2 {
 		usage()
@@ -110,26 +99,32 @@ func main() {
 
 	command := os.Args[1]
 	var connector string
-
+	var pretty bool
 	var client connect.ConnectRestClient
 	switch command {
 	case "config", "status", "delete", "resume", "pause", "tasks", "restart-failed":
 		connectorCommand.Parse(os.Args[2:])
-		connector = *connectName
 		client = connect.NewConnectClient(*connectHost, *connectPort)
+		connector = *connectName
+		pretty = *connectPretty
 	case "list":
 		listCommand.Parse(os.Args[2:])
 		client = connect.NewConnectClient(*listHost, *listPort)
+		pretty = *listPretty
 	case "delete-all", "plugins", "version":
 		commonCommand.Parse(os.Args[2:])
 		client = connect.NewConnectClient(*commonHost, *commonPort)
+		pretty = *commonPretty
 	case "create":
 		createCommand.Parse(os.Args[2:])
-		client = connect.NewConnectClient(*configHost, *configPort)
+		client = connect.NewConnectClient(*createHost, *createPort)
+		pretty = *createPretty
 	case "scale":
 		scaleCommand.Parse(os.Args[2:])
-		connector = *scaleName
 		client = connect.NewConnectClient(*scaleHost, *scalePort)
+		connector = *scaleName
+		pretty = *scalePretty
+
 	case "help":
 		switch os.Args[2] {
 		case "config", "status", "delete", "resume", "pause", "tasks", "restart-failed":
@@ -160,9 +155,9 @@ func main() {
 		for _, conn := range matchConnectors {
 			switch command {
 			case "config":
-				fmt.Println(client.GetConfig(conn))
+				utils.PrintJson(client.GetConfig(conn), pretty)
 			case "status":
-				fmt.Println(client.Status(conn))
+				utils.PrintJson(client.Status(conn), pretty)
 			case "delete":
 				client.Delete(conn)
 			case "resume":
@@ -170,12 +165,12 @@ func main() {
 			case "pause":
 				client.Pause(conn)
 			case "tasks":
-				fmt.Println(client.Tasks(conn))
+				utils.PrintJson(client.Tasks(conn), pretty)
 			case "restart-failed":
-				connectStatus := getUnmarshalConnectStatus(client, conn)
-				for _, task := range connectStatus.Tasks {
+				status := client.Status(conn)
+				for _, task := range status.Tasks {
 					if task.State == "FAILED" {
-						client.Restart(connectStatus.Name, task.ID)
+						client.Restart(status.Name, task.ID)
 					}
 				}
 			}
@@ -187,22 +182,22 @@ func main() {
 		switch state {
 		case "RUNNING", "FAILED", "PAUSED", "UNASSIGNED":
 			connectors := findMatchingConnectors(client, func(conn string) bool {
-				connectStatus := getUnmarshalConnectStatus(client, conn)
-				res := connectStatus.Connector.State == state
-				for _, task := range connectStatus.Tasks {
+				status := client.Status(conn)
+				res := status.Connector.State == state
+				for _, task := range status.Tasks {
 					res = res || task.State == state
 				}
 				return res
 			})
-			fmt.Println(connectors)
+			utils.PrintJson(connectors, pretty)
 
 		default:
-			fmt.Println(client.List())
+			utils.PrintJson(client.List(), pretty)
 		}
 	}
 
 	if createCommand.Parsed() {
-		client.Create(*configJson)
+		utils.PrintJson(client.Create(*createJson), pretty)
 	}
 
 	if scaleCommand.Parsed() {
@@ -212,22 +207,17 @@ func main() {
 			os.Exit(1)
 		}
 		config := client.GetConfig(*scaleName)
-		var connectConfig connect.ConnectorConfig
-		err := json.Unmarshal([]byte(config), &connectConfig)
-		if err != nil {
-			panic(err)
-		}
-		connectConfig.Config["tasks.max"] = *scaleTasks
-		jsonConfig, _ := json.Marshal(connectConfig.Config)
-		fmt.Println(client.Update(*scaleName, string(jsonConfig)))
+		config.Config["tasks.max"] = *scaleTasks
+		jsonConfig, _ := json.Marshal(config.Config)
+		utils.PrintJson(client.Update(*scaleName, string(jsonConfig)), pretty)
 	}
 
 	if commonCommand.Parsed() {
 		switch command {
 		case "version":
-			fmt.Println(client.Version())
+			utils.PrintJson(client.Version(), pretty)
 		case "plugins":
-			fmt.Println(client.Plugins())
+			utils.PrintJson(client.Plugins(), pretty)
 		case "delete-all":
 			matchConnectors := findMatchingConnectors(client, func(_ string) bool { return true })
 			for _, conn := range matchConnectors {
