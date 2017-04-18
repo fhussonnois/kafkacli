@@ -1,19 +1,16 @@
-/**
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * Simple Command line interface (CLI) to manage connectors though the Kafka Connect REST Interface.
- *
- **/
+/*
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
 package main
 
 import (
@@ -39,6 +36,7 @@ func findMatchingConnectors(client connect.ConnectRestClient, fn Matcher) []stri
 	return matchConnectors
 }
 
+// Display commands usage and exit with return code 1.
 func usage() {
 	fmt.Println("A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.\n")
 	fmt.Fprintf(os.Stderr, "Usage of %s: command [arguments] \n", os.Args[0])
@@ -61,6 +59,7 @@ func usage() {
 	os.Exit(1)
 }
 
+// A simple command line interface (CLI) to manage connectors though the Kafka Connect REST Interface.
 func main() {
 
 	commonCommand := flag.NewFlagSet("Worker", flag.ExitOnError)
