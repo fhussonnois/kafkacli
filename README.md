@@ -1,6 +1,9 @@
 Kafka CLI
 =============================================================
 
+[![Build Status](https://travis-ci.org/fhussonnois/kafkacli.svg?branch=master)](https://travis-ci.org/fhussonnois/kafkacli)
+[![GoDoc](https://img.shields.io/badge/docs-GoDoc-blue.svg)](https://godoc.org/github.com/fhussonnois/kafkacli)
+
 [Apache Kafka](http://kafka.apache.org/) is a high-throughput, distributed, publish-subscribe messaging system.
 
 ## Kafka Connect CLI
