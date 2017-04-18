@@ -72,7 +72,10 @@ The commands are :
 	global-compatibility	Getting the global compatibility level.
 	compatibility		Getting subject compatibility level for a subject.
 	schema			Getting a specific version of the schema registered under this subject
+	register		Registering a new schema under the specified subject.
 	subjects		Getting the list of registered subjects.
+	test			Testing schemas for compatibility against specific versions of a subject’s schema.
+	set-compatibility	Setting a new compatibility level.
 	versions		Getting a list of versions registered under the specified subject.
 
 Use "schemaregistrycli help [command]" for more information about that command.
