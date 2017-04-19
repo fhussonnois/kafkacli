@@ -44,6 +44,7 @@ type ConnectorStatus struct {
 		State    string `json:"state"`
 		ID       int    `json:"id"`
 		WorkerID string `json:"worker_id"`
+		Trace    string `json:"trace,omitempty"`
 	} `json:"tasks"`
 }
 
