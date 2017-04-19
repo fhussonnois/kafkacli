@@ -73,37 +73,37 @@ func NewArgParser(name string) ArgParser {
 	}
 }
 
-func (p *ArgParser) withPortArg() ArgParser {
+func (p *ArgParser) withPortArg() *ArgParser {
 	p.Args.port = p.Flag.Int("port", DEFAULT_PORT, "The schema registry port. (Required)")
-	return *p
+	return p
 }
-func (p *ArgParser) withHostArg() ArgParser {
+func (p *ArgParser) withHostArg() *ArgParser {
 	p.Args.host = p.Flag.String("host", DEFAULT_HOST, "The schema registry hostname. (Required)")
-	return *p
+	return p
 }
-func (p *ArgParser) withPrettyArg() ArgParser {
+func (p *ArgParser) withPrettyArg() *ArgParser {
 	p.Args.pretty = p.Flag.Bool("pretty", false, "Pretty print json output.")
-	return *p
+	return p
 }
 
-func (p *ArgParser) withVersionArg() ArgParser {
+func (p *ArgParser) withVersionArg() *ArgParser {
 	p.Args.version = p.Flag.String("version", DEFAULT_VERSION, "Version of the schema to be returned or the string \"latest\".")
-	return *p
+	return p
 }
 
-func (p *ArgParser) withSubjectArg() ArgParser {
+func (p *ArgParser) withSubjectArg() *ArgParser {
 	p.Args.subject = p.Flag.String("subject", "", "The name of the subject. (Required)")
-	return *p
+	return p
 }
 
-func (p *ArgParser) withSchemaArg() ArgParser {
+func (p *ArgParser) withSchemaArg() *ArgParser {
 	p.Args.schema = p.Flag.String("schema", "", "The Avro schema.")
-	return *p
+	return p
 }
 
-func (p *ArgParser) withCompatibilityArg() ArgParser {
+func (p *ArgParser) withCompatibilityArg() *ArgParser {
 	p.Args.compatibility = p.Flag.String("level", "", "The new compatibility level. Must be one of NONE, FULL, FORWARD, BACKWARD (Required)")
-	return *p
+	return p
 }
 
 func (p *ArgParser) parse(args []string) CommandArgs {
@@ -111,10 +111,10 @@ func (p *ArgParser) parse(args []string) CommandArgs {
 	return p.Args
 }
 
-func (p *ArgParser) withCommonArgs() {
-	p.withHostArg()
-	p.withPortArg()
-	p.withPrettyArg()
+func (p *ArgParser) withCommonArgs() *ArgParser{
+	p.withHostArg().withPortArg().withPrettyArg()
+
+	return p
 }
 
 func main() {
@@ -127,28 +127,19 @@ func main() {
 	CommonArgParser.withCommonArgs()
 
 	SubjectArgParser := NewArgParser("SubjectArgParser")
-	SubjectArgParser.withCommonArgs()
-	SubjectArgParser.withSubjectArg()
+	SubjectArgParser.withCommonArgs().withSubjectArg()
 
 	RegisterArgParser := NewArgParser("RegisterArgParser")
-	RegisterArgParser.withCommonArgs()
-	RegisterArgParser.withSubjectArg()
-	RegisterArgParser.withSchemaArg()
+	RegisterArgParser.withCommonArgs().withSubjectArg().withSchemaArg()
 
 	SchemaArgParser := NewArgParser("SchemaArgParser")
-	SchemaArgParser.withCommonArgs()
-	SchemaArgParser.withSubjectArg()
-	SchemaArgParser.withVersionArg()
+	SchemaArgParser.withCommonArgs().withSubjectArg().withVersionArg()
 
 	CompatibilityArgParser := NewArgParser("CompatibilityArgParser")
-	CompatibilityArgParser.withCommonArgs()
-	CompatibilityArgParser.withSubjectArg()
-	CompatibilityArgParser.withCompatibilityArg()
+	CompatibilityArgParser.withCommonArgs().withSubjectArg().withCompatibilityArg()
 
 	TestCompatibilityArgParser := NewArgParser("TestCompatibilityArgParser")
-	TestCompatibilityArgParser.withCommonArgs()
-	TestCompatibilityArgParser.withSubjectArg()
-	TestCompatibilityArgParser.withVersionArg()
+	TestCompatibilityArgParser.withCommonArgs().withSubjectArg().withVersionArg()
 
 	command := os.Args[1]
 	var commandArgParser ArgParser
