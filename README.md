@@ -15,9 +15,15 @@ A simple Command line interface (CLI) to manage connectors through the Kafka Con
 go get github.com/fhussonnois/kafkacli/cmd/kafkaconnectcli
 ```
 
+or...
+
+```bash
+./release.sh
+```
+
 ### Run command
 ```bash
-./bin/kafkaconnectcli
+./bin/kafka-connect-cli
 ```
 
 ### Usage
@@ -25,7 +31,7 @@ go get github.com/fhussonnois/kafkacli/cmd/kafkaconnectcli
 ```bash
 A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.
 
-Usage of ./bin/kafkaconnectcli: command [arguments] 
+Usage of ./bin/kafka-connect-cli: command [arguments] 
 The commands are : 
 
     list            Listing active connectors on a worker.
@@ -43,8 +49,29 @@ The commands are :
     update          Updating connector configuration.
     version         Getting a connect worker version.
 
-Use "kafkaconnectcli help [command]" for more information about that command.
+Use "kafka-connect-cli help [command]" for more information about that command.
 
+```
+
+### Create new connector instance
+
+A new connector configuration can be passed through either json or properties file.
+
+```
+Usage of create: Creating a new connector.
+The arguments are :
+  -config string
+    	The connector configuration json string. (Required)
+  -config.json string
+    	<file> The connector configuration json file. (Required)
+  -config.props string
+    	<file> The connector configuration properties file. (Required)
+  -host string
+    	The connector worker host address. (Required) (default "localhost")
+  -port int
+    	The connector worker port. (Required) (default 8083)
+  -pretty
+    	Pretty print json output.
 ```
 
 ## Confluent Schema registry
@@ -58,7 +85,7 @@ go get github.com/fhussonnois/kafkacli/cmd/schemaregistrycli
 
 ### Run command
 ```bash
-./bin/schemaregistrycli
+./bin/schema-registry-cli
 ```
 
 ### Usage
@@ -78,7 +105,7 @@ The commands are :
 	set-compatibility	Setting a new compatibility level.
 	versions		Getting a list of versions registered under the specified subject.
 
-Use "schemaregistrycli help [command]" for more information about that command.
+Use "schema-registry-cli help [command]" for more information about that command.
 ```
 
 ## Contributions

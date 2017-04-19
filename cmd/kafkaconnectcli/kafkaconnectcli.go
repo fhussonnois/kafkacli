@@ -19,31 +19,38 @@ import (
 	"fmt"
 	"github.com/fhussonnois/kafkacli/connect"
 	"github.com/fhussonnois/kafkacli/utils"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
+var Commands = map[string]string{
+	"list":           "Listing active connectors on a worker.",
+	"config":         "Getting connector configuration.",
+	"create":         "Creating a new connector.",
+	"delete":         "Deleting a connector.",
+	"delete-all":     "eleting all connectors.",
+	"pause":          "Pausing a connector (useful if downtime is needed for the system the connector interacts with).",
+	"plugins":        "Listing installed connectors plugins.",
+	"resume":         "Restarting a connector.",
+	"restart-failed": "Restarting failed tasks for a connector.",
+	"status":         "Getting connector status.",
+	"tasks":          "Getting tasks for a connector.",
+	"scale":          "Scaling up/down the number of tasks for a connector.",
+	"update":         "Updating connector configuration.",
+	"version":        "Getting a connect worker version.",
+}
+
 // Display commands usage and exit with return code 1.
 func usage() {
 	fmt.Println("A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.\n")
 	fmt.Fprintf(os.Stderr, "Usage of %s: command [arguments] \n", os.Args[0])
 	fmt.Println("The commands are : \n")
-	fmt.Println("	list		Listing active connectors on a worker.")
-	fmt.Println("	config		Getting connector configuration.")
-	fmt.Println("	create		Creating a new connector.")
-	fmt.Println("	delete		Deleting a connector.")
-	fmt.Println("	delete-all	Deleting all connectors.")
-	fmt.Println("	pause		Pausing a connector (useful if downtime is needed for the system the connector interacts with).")
-	fmt.Println("	plugins		Listing installed connectors plugins.")
-	fmt.Println("	resume		Restarting a connector.")
-	fmt.Println("	restart-failed	Restarting failed tasks for a connector.")
-	fmt.Println("	status		Getting connector status.")
-	fmt.Println("	tasks		Getting tasks for a connector.")
-	fmt.Println("	scale		Scaling up/down the number of tasks for a connector.")
-	fmt.Println("	update		Updating connector configuration.")
-	fmt.Println("	version		Getting a connect worker version.")
+	for k, v := range Commands {
+		fmt.Printf("	%-20s%s\n", k, v)
+	}
 	fmt.Println("\nUse \"kafka-connect-cli help [command]\" for more information about that command.")
 	os.Exit(1)
 }
@@ -59,13 +66,15 @@ type CommandArgs struct {
 	pretty    *bool
 	connector *string
 	state     *string
-	config    *string
+	json      *string
+	jsonFile  *string
+	propsFile *string
 	tasks     *int
 }
 
 type Validator struct {
-	name  string
-	apply func(args CommandArgs) bool
+	message string
+	apply   func(args CommandArgs) bool
 }
 
 type ArgParser struct {
@@ -84,7 +93,7 @@ func NewArgParser(name string) ArgParser {
 func (p *ArgParser) Validates() {
 	for _, v := range p.validators {
 		if !v.apply(p.Args) {
-			fmt.Fprintf(os.Stderr, "Missing or invalid argument '%s'\n\n", v.name)
+			fmt.Fprintf(os.Stderr, "'%s'\n\n", v.message)
 			fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 			p.Flag.PrintDefaults()
 			os.Exit(1)
@@ -109,9 +118,10 @@ func (p *ArgParser) withPrettyArg() *ArgParser {
 	return p
 }
 func (p *ArgParser) withConnectorArg() *ArgParser {
-	name := "connector"
-	p.Args.connector = p.Flag.String(name, "", "The connector name or a regex. (Required)")
-	p.addValidators(Validator{name: name, apply: func(args CommandArgs) bool { return *args.connector != "" }})
+	p.Args.connector = p.Flag.String("connector", "", "The connector name or a regex. (Required)")
+
+	apply := func(args CommandArgs) bool { return *args.connector != "" }
+	p.addValidators(Validator{message: "Missing or invalid argument 'connector'", apply: apply})
 	return p
 }
 func (p *ArgParser) withStateArg() *ArgParser {
@@ -119,15 +129,18 @@ func (p *ArgParser) withStateArg() *ArgParser {
 	return p
 }
 func (p *ArgParser) withConfigArg() *ArgParser {
-	name := "config"
-	p.Args.config = p.Flag.String(name, "", "The connector configuration. (Required)")
-	p.addValidators(Validator{name: name, apply: func(args CommandArgs) bool { return *args.config != "" }})
+	p.Args.json = p.Flag.String("config", "", "The connector configuration json string. (Required)")
+	p.Args.jsonFile = p.Flag.String("config.json", "", "<file> The connector configuration json file. (Required)")
+	p.Args.propsFile = p.Flag.String("config.props", "", "<file> The connector configuration properties file. (Required)")
+
+	apply := func(args CommandArgs) bool { return *args.json != "" || *args.jsonFile != "" || *args.propsFile != "" }
+	p.addValidators(Validator{message: "Missing or invalid arguments [config | config.json | config.props]", apply: apply})
 	return p
 }
 func (p *ArgParser) withTasksMaxArg() *ArgParser {
-	name := "tasks-max"
-	p.Args.tasks = p.Flag.Int(name, 0, "The max number of tasks to update. (Required)")
-	p.addValidators(Validator{name: name, apply: func(args CommandArgs) bool { return *args.tasks > 0 }})
+	p.Args.tasks = p.Flag.Int("tasks-max", 0, "The max number of tasks to update. (Required)")
+	apply := func(args CommandArgs) bool { return *args.tasks > 0 }
+	p.addValidators(Validator{message: "Missing or invalid argument 'tasks-max'", apply: apply})
 	return p
 }
 func (p *ArgParser) parse(args []string) CommandArgs {
@@ -176,6 +189,7 @@ func main() {
 	case "scale":
 		commandArgParser = ScaleArgParser
 	case "help":
+		fmt.Printf("Usage of %s: %s\nThe arguments are :\n", os.Args[2], Commands[os.Args[2]])
 		switch os.Args[2] {
 		case "config", "status", "delete", "resume", "pause", "tasks", "restart-failed":
 			ConnectorArgParser.Flag.PrintDefaults()
@@ -190,6 +204,7 @@ func main() {
 		default:
 			fmt.Println("Unknown help command `" + os.Args[2] + "`.  Run '" + os.Args[0] + " help'.")
 		}
+		os.Exit(1)
 	default:
 		usage()
 	}
@@ -248,7 +263,36 @@ func main() {
 	}
 
 	if CreateArgParser.Flag.Parsed() {
-		utils.PrintJson(client.Create(*args.config), *args.pretty)
+		var jsonConfig []byte
+		if *args.json != "" {
+			jsonConfig = []byte(*args.json)
+		}
+		if *args.jsonFile != "" {
+			file, err := ioutil.ReadFile(*args.jsonFile)
+			if err != nil {
+				fmt.Printf("Error while reading config file %s error: %v\n", *args.jsonFile, err)
+				os.Exit(1)
+			}
+			jsonConfig = file
+		}
+		if *args.propsFile != "" {
+			config, err := utils.ReadProps(*args.propsFile)
+			if err != nil {
+				fmt.Printf("Error while reading config file %s error: %v\n", *args.jsonFile, err)
+				os.Exit(1)
+			}
+			name := config["name"]
+			delete(config, "name")
+			jsonConfig, _ = json.Marshal(connect.Config{Name: name, Config: config})
+		}
+		var config connect.Config
+		fmt.Println(string(jsonConfig))
+		err := json.Unmarshal(jsonConfig, &config)
+		if err != nil {
+			fmt.Printf("Invalid configuration - error: %v\n", err)
+			os.Exit(1)
+		}
+		utils.PrintJson(client.Create(config), *args.pretty)
 	}
 
 	if ScaleArgParser.Flag.Parsed() {

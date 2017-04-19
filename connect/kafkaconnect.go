@@ -48,6 +48,11 @@ type ConnectorStatus struct {
 	} `json:"tasks"`
 }
 
+type Config struct {
+	Name   string            `json:"name"`
+	Config map[string]string `json:"config"`
+}
+
 const (
 	HTTP       = "HTTP://"
 	CONNECTORS = "/connectors/"
@@ -157,8 +162,9 @@ func (client *ConnectRestClient) Restart(connector string, id int) {
 
 // Create submit a new connector configuration.
 // Return a JSON string describing the new connector configuration.
-func (client *ConnectRestClient) Create(config string) string {
-	return sendGetResponse("POST", client.connectEndPoint(), config)
+func (client *ConnectRestClient) Create(config Config) string {
+	body, _ := json.Marshal(config)
+	return sendGetResponse("POST", client.connectEndPoint(), string(body))
 }
 
 // Update modifies the configuration for the specified connector name.
