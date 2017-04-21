@@ -96,14 +96,15 @@ A simple Command line interface (CLI) to manage Confluent Schema Registry.
 Usage of ./bin/schemaregistrycli: command [arguments] 
 The commands are : 
 
-	global-compatibility	Getting the global compatibility level.
-	compatibility		Getting subject compatibility level for a subject.
-	schema			Getting a specific version of the schema registered under this subject
-	register		Registering a new schema under the specified subject.
-	subjects		Getting the list of registered subjects.
-	test			Testing schemas for compatibility against specific versions of a subject’s schema.
-	set-compatibility	Setting a new compatibility level.
-	versions		Getting a list of versions registered under the specified subject.
+	compatibility            Getting subject compatibility level for a subject.
+	exist                    Checking if a schema has already been registered under the specified subject
+	get                      Getting a specific version of the schema registered under this subject
+	global-compatibility     Getting the global compatibility level.
+	register                 Registering a new schema under the specified subject.
+	set-compatibility        Setting a new compatibility level.
+	subjects                 Getting the list of registered subjects.
+	test                     Testing schemas for compatibility against specific versions of a subject’s schema.
+	versions                 Getting a list of versions registered under the specified subject.
 
 Use "schema-registry-cli help [command]" for more information about that command.
 ```

@@ -16,6 +16,7 @@ package registry
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -37,15 +38,27 @@ type SchemaVersion struct {
 	Schema  string `json:"schema"`
 }
 
+type ID struct {
+	Value int `json:"id"`
+}
+
 type NewSchemaVersion struct {
 	Subject string `json:"subject"`
-	ID      string `json:"id"`
+	ID      int    `json:"id"`
 	Version int    `json:"version"`
 	Schema  string `json:"schema"`
 }
 
 type Compatibility struct {
 	Value string `json:"compatibility"`
+}
+
+type CompatibilityLevel struct {
+	Value string `json:"compatibilityLevel"`
+}
+
+type IsCompatible struct {
+	Value bool `json:"is_compatible"`
 }
 
 type Schema struct {
@@ -76,81 +89,113 @@ func (client *SchemaRegistryRestClient) subjectsEndPoint() string {
 
 // Subjects retrieves the list of registered subjects.
 // Return subjects as an array of string.
-func (client *SchemaRegistryRestClient) Subjects() []string {
-	response := sendGetResponse("GET", client.subjectsEndPoint(), "")
-	return unmarshalArrayString(response)
+func (client *SchemaRegistryRestClient) Subjects() (r []string, e error) {
+	response, e := sendGetResponse("GET", client.subjectsEndPoint(), "")
+	if e == nil {
+		r = unmarshalArrayString(string(response))
+	}
+	return
 }
 
 // Versions retrieves the list of versions registered under the specified subject.
 // Return versions as an array of int.
-func (client *SchemaRegistryRestClient) Versions(subject string) []int {
-	response := sendGetResponse("GET", client.subjectsEndPoint()+subject+"/versions", "")
-	return unmarshalArrayInt(response)
+func (client *SchemaRegistryRestClient) Versions(subject string) (r []int, e error) {
+	response, e := sendGetResponse("GET", client.subjectsEndPoint()+subject+"/versions", "")
+	if e == nil {
+		r = unmarshalArrayInt(string(response))
+	}
+	return
 }
 
 // GetSubjectVersion retrieves a specific version of the schema registered under this subject.
 // Return a new SchemaVersion struct.
-func (client *SchemaRegistryRestClient) GetSubjectVersion(subject string, version string) SchemaVersion {
-	response := sendGetResponse("GET", client.subjectsEndPoint()+subject+"/versions/"+version, "")
-	var ret SchemaVersion
-	err := json.Unmarshal([]byte(response), &ret)
-	if err != nil {
-		panic(err)
+func (client *SchemaRegistryRestClient) GetSubjectVersion(subject string, version string) (r SchemaVersion, e error) {
+	response, e := sendGetResponse("GET", client.subjectsEndPoint()+subject+"/versions/"+version, "")
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return ret
+	return
 }
 
 // Register registers a new schema under the specified subject.
 // Return a new NewSchemaVersion struct.
-func (client *SchemaRegistryRestClient) Register(subject string, schema Schema) NewSchemaVersion {
+func (client *SchemaRegistryRestClient) Register(subject string, schema Schema) (r ID, e error) {
 	body, _ := json.Marshal(schema)
-	response := sendGetResponse("POST", client.subjectsEndPoint()+subject, string(body))
-	var ret NewSchemaVersion
-	err := json.Unmarshal([]byte(response), &ret)
-	if err != nil {
-		panic(err)
+	response, e := sendGetResponse("POST", client.subjectsEndPoint()+subject+"/versions", string(body))
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return ret
+	return
+}
+
+// Exists checks if a schema has already been registered under the specified subject.
+// If so, this returns the schema string along with its globally unique identifier, its version under this subject and the subject name.
+// Return a new NewSchemaVersion struct.
+func (client *SchemaRegistryRestClient) Exists(subject string, schema Schema) (r NewSchemaVersion, e error) {
+	body, _ := json.Marshal(schema)
+	response, e := sendGetResponse("POST", client.subjectsEndPoint()+subject, string(body))
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return
 }
 
 // GetGlobalCompatibility retrieves the global compatibility level.
 // Return as JSON string.
-func (client *SchemaRegistryRestClient) GetGlobalCompatibility() string {
-	response := sendGetResponse("GET", client.hostname()+"/config", "")
-	return response
+func (client *SchemaRegistryRestClient) GetGlobalCompatibility() (r string, e error) {
+	response, e := sendGetResponse("GET", client.hostname()+"/config", "")
+	r = string(response)
+	return
 }
 
 // GetSubjectCompatibility retrieves the compatibility level for the specified subject.
 // Return as JSON string.
-func (client *SchemaRegistryRestClient) GetSubjectCompatibility(subject string) string {
-	response := sendGetResponse("GET", client.hostname()+"/config/"+subject, "")
-	return response
+func (client *SchemaRegistryRestClient) GetSubjectCompatibility(subject string) (r CompatibilityLevel, e error) {
+	response, e := sendGetResponse("GET", client.hostname()+"/config/"+subject, "")
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return
 }
 
 // UpdateSubjectCompatibility sets the compatibility level for the specified subject.
 // Return the new Compatibility.
-func (client *SchemaRegistryRestClient) UpdateSubjectCompatibility(subject string, compatibility Compatibility) Compatibility {
+func (client *SchemaRegistryRestClient) UpdateSubjectCompatibility(subject string, compatibility Compatibility) (r Compatibility, e error) {
 	body, _ := json.Marshal(compatibility)
-	response := sendGetResponse("PUT", client.hostname()+"/config/"+subject, string(body))
-	var ret Compatibility
-	err := json.Unmarshal([]byte(response), &ret)
-	if err != nil {
-		panic(err)
+	response, e := sendGetResponse("PUT", client.hostname()+"/config/"+subject, string(body))
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return ret
+	return
 }
 
 // UpdateSubjectCompatibility tests schemas for compatibility against specific versions of a subject’s schema.
 // Return the new Compatibility.
-func (client *SchemaRegistryRestClient) CheckSubjectCompatibility(subject string, versionId string, schema Schema) Compatibility {
+func (client *SchemaRegistryRestClient) CheckSubjectCompatibility(subject string, versionId string, schema Schema) (r IsCompatible, e error) {
 	body, _ := json.Marshal(schema)
-	response := sendGetResponse("POST", client.hostname()+"/compatibility/subjects/"+subject+"/versions/"+versionId, string(body))
-	var ret Compatibility
-	err := json.Unmarshal([]byte(response), &ret)
-	if err != nil {
-		panic(err)
+	response, e := sendGetResponse("POST", client.hostname()+"/compatibility/subjects/"+subject+"/versions/"+versionId, string(body))
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return ret
+	return
 }
 
 func unmarshalArrayString(s string) []string {
@@ -171,7 +216,7 @@ func unmarshalArrayInt(s string) []int {
 	return res
 }
 
-func sendGetResponse(method string, url string, content string) string {
+func sendGetResponse(method string, url string, content string) ([]byte, error) {
 	req, err := http.NewRequest(method, url, bytes.NewBufferString(content))
 	req.Header.Add("Content-Type", HEADER_CONTENT_TYPE)
 	req.Header.Add("Accept", HEADER_ACCEPT)
@@ -182,5 +227,10 @@ func sendGetResponse(method string, url string, content string) string {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	return string(body)
+
+	if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
+		return nil, errors.New(string(body))
+	}
+	return body, nil
+
 }

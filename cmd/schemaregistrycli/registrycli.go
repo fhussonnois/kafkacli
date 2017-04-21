@@ -18,36 +18,46 @@ import (
 	"fmt"
 	"github.com/fhussonnois/kafkacli/registry"
 	"github.com/fhussonnois/kafkacli/utils"
+	"io/ioutil"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 )
+
+var Commands = map[string]string{
+
+	"compatibility": "Getting subject compatibility level for a subject.",
+	"exist":         "Checking if a schema has already been registered under the specified subject",
+	"get":           "Getting a specific version of the schema registered under this subject",
+	"global-compatibility": "Getting the global compatibility level.",
+	"register":             "Registering a new schema under the specified subject.",
+	"set-compatibility":    "Setting a new compatibility level.",
+	"subjects":             "Getting the list of registered subjects.",
+	"test":                 "Testing schemas for compatibility against specific versions of a subject’s schema.",
+	"versions":             "Getting a list of versions registered under the specified subject.",
+}
 
 // Display commands usage and exit with return code 1.
 func usage() {
 	fmt.Println("A simple Command line interface (CLI) to manage Confluent Schema Registry.\n")
-	fmt.Fprintf(os.Stderr, "Usage of %s: command [arguments] \n", os.Args[0])
+	fmt.Fprintf(os.Stdin, "Usage of %s: command [arguments] \n", os.Args[0])
 	fmt.Println("The commands are : \n")
-	fmt.Println("	global-compatibility	Getting the global compatibility level.")
-	fmt.Println("	compatibility		Getting subject compatibility level for a subject.")
-	fmt.Println("	schema			Getting a specific version of the schema registered under this subject")
-	fmt.Println("	register		Registering a new schema under the specified subject.")
-	fmt.Println("	subjects		Getting the list of registered subjects.")
-	fmt.Println("	test			Testing schemas for compatibility against specific versions of a subject’s schema.")
-	fmt.Println("	set-compatibility	Setting a new compatibility level.")
-	fmt.Println("	versions		Getting a list of versions registered under the specified subject.")
-	fmt.Println("\nUse \"schemaregistrycli help [command]\" for more information about that command.")
+	keys := []string{}
+	for k := range Commands {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Printf("	%-25s%s\n", k, Commands[k])
+	}
+	fmt.Println("\nUse \"schema-registry-cli help [command]\" for more information about that command.")
 	os.Exit(1)
 }
 
-func checkNotNull(arg string, fs *flag.FlagSet) {
-	if arg == "" {
-		fs.PrintDefaults()
-		os.Exit(1)
-	}
-}
-
 const (
-	DEFAULT_HOST 	= "localhost"
-	DEFAULT_PORT 	= 8081
+	DEFAULT_HOST    = "localhost"
+	DEFAULT_PORT    = 8081
 	DEFAULT_VERSION = "latest"
 )
 
@@ -57,13 +67,63 @@ type CommandArgs struct {
 	subject       *string
 	pretty        *bool
 	version       *string
-	schema        *string
+	isSchema      *bool
+	schemaString  *string
+	schemaJson    *string
 	compatibility *string
+	force         *bool
 }
 
 type ArgParser struct {
-	Args CommandArgs
-	Flag *flag.FlagSet
+	Args       CommandArgs
+	Flag       *flag.FlagSet
+	validators []Validator
+}
+
+type Validator interface {
+	Message() string
+	Apply(args CommandArgs) bool
+}
+
+type CheckNotNull struct {
+	name string
+	arg  func(args CommandArgs) string
+}
+
+func (p CheckNotNull) Message() string             { return "Missing or invalid argument '" + p.name + "'" }
+func (p CheckNotNull) Apply(args CommandArgs) bool { return len(p.arg(args)) > 0 }
+
+type CheckValueIn struct {
+	name   string
+	values []string
+	arg    func(args CommandArgs) string
+}
+
+func (p CheckValueIn) Message() string { return "Missing or invalid argument '" + p.name + "'" }
+func (p CheckValueIn) Apply(args CommandArgs) (contains bool) {
+	contains = false
+	for _, v := range p.values {
+		if p.arg(args) == v {
+			contains = true
+			return
+		}
+	}
+	return
+}
+
+func (p *ArgParser) Validates() {
+	for _, v := range p.validators {
+		if !v.Apply(p.Args) {
+			fmt.Fprintf(os.Stderr, "'%s'\n\n", v.Message())
+			fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+			p.Flag.PrintDefaults()
+			os.Exit(1)
+		}
+	}
+}
+
+func (p *ArgParser) addValidators(v Validator) {
+	p.validators = append(p.validators, v)
 }
 
 func NewArgParser(name string) ArgParser {
@@ -75,10 +135,12 @@ func NewArgParser(name string) ArgParser {
 
 func (p *ArgParser) withPortArg() *ArgParser {
 	p.Args.port = p.Flag.Int("port", DEFAULT_PORT, "The schema registry port. (Required)")
+	p.addValidators(CheckNotNull{name: "port", arg: func(args CommandArgs) string { return strconv.Itoa(*args.port) }})
 	return p
 }
 func (p *ArgParser) withHostArg() *ArgParser {
 	p.Args.host = p.Flag.String("host", DEFAULT_HOST, "The schema registry hostname. (Required)")
+	p.addValidators(CheckNotNull{name: "host", arg: func(args CommandArgs) string { return *args.host }})
 	return p
 }
 func (p *ArgParser) withPrettyArg() *ArgParser {
@@ -92,17 +154,32 @@ func (p *ArgParser) withVersionArg() *ArgParser {
 }
 
 func (p *ArgParser) withSubjectArg() *ArgParser {
-	p.Args.subject = p.Flag.String("subject", "", "The name of the subject. (Required)")
+	p.Args.subject = p.Flag.String("subject", "", "The name of the subject (Required).")
+	p.addValidators(CheckNotNull{name: "subject", arg: func(args CommandArgs) string { return *args.subject }})
 	return p
 }
 
 func (p *ArgParser) withSchemaArg() *ArgParser {
-	p.Args.schema = p.Flag.String("schema", "", "The Avro schema.")
+	p.Args.schemaString = p.Flag.String("schema", "", "The Avro schema json string (Required).")
+	p.Args.schemaJson = p.Flag.String("schema.json", "", "<file> The Avro schema json file (Required).")
+	return p
+}
+
+func (p *ArgParser) withIsSchemaArg() *ArgParser {
+	p.Args.isSchema = p.Flag.Bool("schema", false, "Retrieve only the json schema from the version.")
+	return p
+}
+
+func (p *ArgParser) withForceArg() *ArgParser {
+	p.Args.force = p.Flag.Bool("force", false, "Temporally set the subject compatibility-level to NONE before registering schema.")
 	return p
 }
 
 func (p *ArgParser) withCompatibilityArg() *ArgParser {
-	p.Args.compatibility = p.Flag.String("level", "", "The new compatibility level. Must be one of NONE, FULL, FORWARD, BACKWARD (Required)")
+	values := []string{"NONE", "FULL", "Beth", "FORWARD", "BACKWARD"}
+	p.Args.compatibility = p.Flag.String("level", "", "The new compatibility level. Must be one of "+strings.Join(values, ",")+" (Required)")
+	p.addValidators(CheckNotNull{name: "level", arg: func(args CommandArgs) string { return *args.compatibility }})
+	p.addValidators(CheckValueIn{name: "level", arg: func(args CommandArgs) string { return *args.compatibility }, values: values})
 	return p
 }
 
@@ -111,9 +188,8 @@ func (p *ArgParser) parse(args []string) CommandArgs {
 	return p.Args
 }
 
-func (p *ArgParser) withCommonArgs() *ArgParser{
+func (p *ArgParser) withCommonArgs() *ArgParser {
 	p.withHostArg().withPortArg().withPrettyArg()
-
 	return p
 }
 
@@ -130,16 +206,19 @@ func main() {
 	SubjectArgParser.withCommonArgs().withSubjectArg()
 
 	RegisterArgParser := NewArgParser("RegisterArgParser")
-	RegisterArgParser.withCommonArgs().withSubjectArg().withSchemaArg()
+	RegisterArgParser.withCommonArgs().withSubjectArg().withSchemaArg().withForceArg()
+
+	ExistArgParser := NewArgParser("ExistArgParser")
+	ExistArgParser.withCommonArgs().withSubjectArg().withSchemaArg()
 
 	SchemaArgParser := NewArgParser("SchemaArgParser")
-	SchemaArgParser.withCommonArgs().withSubjectArg().withVersionArg()
+	SchemaArgParser.withCommonArgs().withSubjectArg().withVersionArg().withIsSchemaArg()
 
 	CompatibilityArgParser := NewArgParser("CompatibilityArgParser")
 	CompatibilityArgParser.withCommonArgs().withSubjectArg().withCompatibilityArg()
 
 	TestCompatibilityArgParser := NewArgParser("TestCompatibilityArgParser")
-	TestCompatibilityArgParser.withCommonArgs().withSubjectArg().withVersionArg()
+	TestCompatibilityArgParser.withCommonArgs().withSubjectArg().withVersionArg().withSchemaArg()
 
 	command := os.Args[1]
 	var commandArgParser ArgParser
@@ -150,8 +229,10 @@ func main() {
 		commandArgParser = SubjectArgParser
 	case "set-compatibility":
 		commandArgParser = CompatibilityArgParser
-	case "schema":
+	case "get":
 		commandArgParser = SchemaArgParser
+	case "exists":
+		commandArgParser = ExistArgParser
 	case "register":
 		commandArgParser = RegisterArgParser
 	case "test":
@@ -162,8 +243,10 @@ func main() {
 			CommonArgParser.Flag.PrintDefaults()
 		case "versions", "compatibility":
 			SubjectArgParser.Flag.PrintDefaults()
-		case "schema":
+		case "get":
 			SchemaArgParser.Flag.PrintDefaults()
+		case "exists":
+			ExistArgParser.Flag.PrintDefaults()
 		case "register":
 			RegisterArgParser.Flag.PrintDefaults()
 		case "set-compatibility":
@@ -171,7 +254,7 @@ func main() {
 		case "test":
 			TestCompatibilityArgParser.Flag.PrintDefaults()
 		default:
-			fmt.Println("Unknown help command `" + os.Args[2] + "`.  Run '" + os.Args[0] + " help'.")
+			fmt.Fprint(os.Stderr, "Unknown help command `"+os.Args[2]+"`.  Run '"+os.Args[0]+" help'.\n")
 		}
 		os.Exit(1)
 	default:
@@ -179,52 +262,138 @@ func main() {
 	}
 
 	args := commandArgParser.parse(os.Args[2:])
+	commandArgParser.Validates()
 
 	client := registry.NewRegistryClient(*args.host, *args.port)
 
 	if CommonArgParser.Flag.Parsed() {
 		switch command {
 		case "subjects":
-			utils.PrintJson(client.Subjects(), *args.pretty)
+			res, err := client.Subjects()
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
 		case "global-compatibility":
-			utils.PrintJson(client.GetGlobalCompatibility(), *args.pretty)
+			res, err := client.GetGlobalCompatibility()
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
+
 		}
 	}
 	if SubjectArgParser.Flag.Parsed() {
 		switch command {
 		case "versions":
-			utils.PrintJson(client.Versions(*args.subject), *args.pretty)
+			res, err := client.Versions(*args.subject)
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
 		case "compatibility":
-			utils.PrintJson(client.GetSubjectCompatibility(*args.subject), *args.pretty)
+			res, err := client.GetSubjectCompatibility(*args.subject)
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
 		}
 	}
 	if RegisterArgParser.Flag.Parsed() {
 		switch command {
 		case "register":
-			schema := registry.Schema{Value: *args.schema}
-			utils.PrintJson(client.Register(*args.subject, schema), *args.pretty)
+			schema := evaluateSchemaArg(args)
+			var compatibilityLevel string
+			if *args.force {
+				compatibility, err := client.GetSubjectCompatibility(*args.subject)
+				if err == nil {
+					compatibilityLevel = compatibility.Value
+					if compatibilityLevel != "NONE" {
+						client.UpdateSubjectCompatibility(*args.subject, registry.Compatibility{Value: "NONE"})
+					}
+				}
+			}
+
+			res, err := client.Register(*args.subject, schema)
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
+
+			if *args.force && len(compatibilityLevel) > 0 && compatibilityLevel != "NONE" {
+				client.UpdateSubjectCompatibility(*args.subject, registry.Compatibility{Value: compatibilityLevel})
+			}
+		}
+	}
+	if ExistArgParser.Flag.Parsed() {
+		switch command {
+		case "exists":
+			schema := evaluateSchemaArg(args)
+			res, err := client.Exists(*args.subject, schema)
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
 		}
 	}
 	if SchemaArgParser.Flag.Parsed() {
 		switch command {
-		case "schema":
-			utils.PrintJson(client.GetSubjectVersion(*args.subject, *args.version), *args.pretty)
+		case "get":
+			version, err := client.GetSubjectVersion(*args.subject, *args.version)
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else if *args.isSchema {
+				s := strings.Replace(version.Schema, "\\", "", -1)
+				utils.PrintJson(s, *args.pretty)
+			} else {
+				utils.PrintJson(version, *args.pretty)
+			}
 		}
 	}
 	if TestCompatibilityArgParser.Flag.Parsed() {
 		switch command {
 		case "test":
-			schema := registry.Schema{Value: *args.schema}
-			utils.PrintJson(client.CheckSubjectCompatibility(*args.subject, *args.version, schema), *args.pretty)
+			schema := evaluateSchemaArg(args)
+			res, err := client.CheckSubjectCompatibility(*args.subject, *args.version, schema)
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
 		}
 	}
 	if CompatibilityArgParser.Flag.Parsed() {
 		switch command {
 		case "set-compatibility":
 			compatibility := registry.Compatibility{Value: *args.compatibility}
-			utils.PrintJson(client.UpdateSubjectCompatibility(*args.subject, compatibility), *args.pretty)
+			res, err := client.UpdateSubjectCompatibility(*args.subject, compatibility)
+			if err != nil {
+				utils.PrintJson(err.Error(), *args.pretty)
+			} else {
+				utils.PrintJson(res, *args.pretty)
+			}
 		}
 	}
-
 	os.Exit(0)
+}
+
+func evaluateSchemaArg(args CommandArgs) (schema registry.Schema) {
+	if *args.schemaString != "" {
+		schema = registry.Schema{Value: *args.schemaString}
+	}
+	if *args.schemaJson != "" {
+		file, err := ioutil.ReadFile(*args.schemaJson)
+		if err != nil {
+			fmt.Fprint(os.Stderr, "Error while reading config file %s error: %v\n", *args.schemaJson, err)
+			os.Exit(1)
+		}
+		schema = registry.Schema{Value: string(file)}
+	}
+	return
 }
