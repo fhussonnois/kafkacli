@@ -6,6 +6,12 @@ Kafka CLI
 
 [Apache Kafka](http://kafka.apache.org/) is a high-throughput, distributed, publish-subscribe messaging system.
 
+##  Requirements
+------------
+
+1. [Kafka 0.9.0.* or latest releases](http://kafka.apache.org/downloads.html)
+2. [Confluent 3.0.* or latest releases](https://www.confluent.io/download/)
+
 ## Kafka Connect CLI
 
 A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.
