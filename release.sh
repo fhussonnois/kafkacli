@@ -13,6 +13,8 @@ fi
 KAFKA_CONNECT_CLI=github.com/fhussonnois/kafkacli/cmd/kafkaconnectcli
 SCHEMA_REGISTRY_CLI=github.com/fhussonnois/kafkacli/cmd/schemaregistrycli
 
+VERSION=`git describe`
+
 GO=${GO_HOME}/bin/go
 BUILD_PATH=${base_dir}/build
 DIST_PATH=${base_dir}/dist
@@ -35,12 +37,12 @@ function compile {
     cp ${base_dir}/CONTRIBUTING.md ${BUILD_PATH}/${DIST}
 
     echo "Building archive ${base_dir}/dist/${DIST}.tar.gz"
-    (cd ${BUILD_PATH}; tar -czvf ${DIST_PATH}/${DIST}.tar.gz ${DIST})
-    (cd ${DIST_PATH}; sha1sum ${DIST}.tar.gz > ${DIST}.tar.gz.sha1)
+    (cd ${BUILD_PATH}; tar -czvf ${DIST_PATH}/${DIST}-${VERSION}.tar.gz ${DIST})
+    (cd ${DIST_PATH}; sha1sum ${DIST}-${VERSION}.tar.gz > ${DIST}-${VERSION}.tar.gz.sha1)
 
     echo "Building archive ${base_dir}/dist/${DIST}.zip"
-    (cd ${BUILD_PATH}; zip -r ${DIST_PATH}/${DIST}.zip ${DIST})
-    (cd ${DIST_PATH}; sha1sum ${DIST}.zip > ${DIST}.zip.sha1)
+    (cd ${BUILD_PATH}; zip -r ${DIST_PATH}/${DIST}-${VERSION}.zip ${DIST})
+    (cd ${DIST_PATH}; sha1sum ${DIST}-${VERSION}.zip > ${DIST}-${VERSION}.zip.sha1)
 }
 
 if [ ! -d "${DIST_PATH}" ]; then
