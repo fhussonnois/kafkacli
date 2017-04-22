@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -46,10 +47,15 @@ var Commands = map[string]string{
 // Display commands usage and exit with return code 1.
 func usage() {
 	fmt.Println("A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.\n")
-	fmt.Fprintf(os.Stderr, "Usage of %s: command [arguments] \n", os.Args[0])
+	fmt.Fprintf(os.Stdin, "Usage of %s: command [arguments] \n", os.Args[0])
 	fmt.Println("The commands are : \n")
-	for k, v := range Commands {
-		fmt.Printf("	%-20s%s\n", k, v)
+	keys := []string{}
+	for k := range Commands {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Printf("	%-25s%s\n", k, Commands[k])
 	}
 	fmt.Println("\nUse \"kafka-connect-cli help [command]\" for more information about that command.")
 	os.Exit(1)
@@ -202,7 +208,7 @@ func main() {
 		case "delete-all", "plugins", "version":
 			CommonArgParser.Flag.PrintDefaults()
 		default:
-			fmt.Println("Unknown help command `" + os.Args[2] + "`.  Run '" + os.Args[0] + " help'.")
+			fmt.Fprint(os.Stderr, "Unknown help command `"+os.Args[2]+"`.  Run '"+os.Args[0]+" help'.\n")
 		}
 		os.Exit(1)
 	default:
@@ -270,7 +276,7 @@ func main() {
 		if *args.jsonFile != "" {
 			file, err := ioutil.ReadFile(*args.jsonFile)
 			if err != nil {
-				fmt.Printf("Error while reading config file %s error: %v\n", *args.jsonFile, err)
+				fmt.Fprint(os.Stderr, "Error while reading config file %s error: %v\n", *args.jsonFile, err)
 				os.Exit(1)
 			}
 			jsonConfig = file
@@ -278,7 +284,7 @@ func main() {
 		if *args.propsFile != "" {
 			config, err := utils.ReadProps(*args.propsFile)
 			if err != nil {
-				fmt.Printf("Error while reading config file %s error: %v\n", *args.jsonFile, err)
+				fmt.Fprint(os.Stderr, "Error while reading config file %s error: %v\n", *args.jsonFile, err)
 				os.Exit(1)
 			}
 			name := config["name"]
@@ -289,7 +295,7 @@ func main() {
 		fmt.Println(string(jsonConfig))
 		err := json.Unmarshal(jsonConfig, &config)
 		if err != nil {
-			fmt.Printf("Invalid configuration - error: %v\n", err)
+			fmt.Fprint(os.Stderr, "Invalid configuration - error: %v\n", err)
 			os.Exit(1)
 		}
 		utils.PrintJson(client.Create(config), *args.pretty)
