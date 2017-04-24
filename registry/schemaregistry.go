@@ -232,5 +232,4 @@ func sendGetResponse(method string, url string, content string) ([]byte, error) 
 		return nil, errors.New(string(body))
 	}
 	return body, nil
-
 }

@@ -14,11 +14,14 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/fhussonnois/kafkacli/registry"
 	"github.com/fhussonnois/kafkacli/utils"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"sort"
 	"strconv"
@@ -70,6 +73,7 @@ type CommandArgs struct {
 	isSchema      *bool
 	schemaString  *string
 	schemaJson    *string
+	schemaUrl     *string
 	compatibility *string
 	force         *bool
 }
@@ -162,6 +166,7 @@ func (p *ArgParser) withSubjectArg() *ArgParser {
 func (p *ArgParser) withSchemaArg() *ArgParser {
 	p.Args.schemaString = p.Flag.String("schema", "", "The Avro schema json string (Required).")
 	p.Args.schemaJson = p.Flag.String("schema.json", "", "<file> The Avro schema json file (Required).")
+	p.Args.schemaUrl = p.Flag.String("schema.url", "", "<url> The Avro schema json url (Required).")
 	return p
 }
 
@@ -388,17 +393,74 @@ func main() {
 	os.Exit(0)
 }
 
-func evaluateSchemaArg(args CommandArgs) (schema registry.Schema) {
+// Default interface to read a JSON Schema
+type SchemaReader interface {
+	Read(source string) (*registry.Schema, error)
+}
+
+// JSONSchemaReader implementation to read Schema from json string.
+type JSONSchemaReader struct {
+}
+
+func (reader JSONSchemaReader) Read(source string) (*registry.Schema, error) {
+	return &registry.Schema{Value: source}, nil
+}
+
+// FileSchemaReader implementation  to read Schema from file string.
+type FileSchemaReader struct {
+	JsonReader JSONSchemaReader
+}
+
+func (reader FileSchemaReader) Read(source string) (*registry.Schema, error) {
+	file, err := ioutil.ReadFile(source)
+	if err != nil {
+		return nil, errors.New(string("Error while reading config file " + source + " error: " + err.Error()))
+	}
+	return reader.JsonReader.Read(string(file))
+}
+
+// HTTPSchemaReader implementation  to read Schema from file string.
+type HTTPSchemaReader struct {
+	JsonReader JSONSchemaReader
+}
+
+func (reader HTTPSchemaReader) Read(source string) (*registry.Schema, error) {
+	req, err := http.NewRequest("GET", source, bytes.NewBufferString(""))
+	req.Header.Add("Accept", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
+		return nil, errors.New(string(body))
+	}
+	return reader.JsonReader.Read(string(body))
+}
+
+func evaluateSchemaArg(args CommandArgs) registry.Schema {
+
+	var source string
+	var reader SchemaReader
 	if *args.schemaString != "" {
-		schema = registry.Schema{Value: *args.schemaString}
+		reader = JSONSchemaReader{}
+		source = *args.schemaString
 	}
 	if *args.schemaJson != "" {
-		file, err := ioutil.ReadFile(*args.schemaJson)
-		if err != nil {
-			fmt.Fprint(os.Stderr, "Error while reading config file %s error: %v\n", *args.schemaJson, err)
-			os.Exit(1)
-		}
-		schema = registry.Schema{Value: string(file)}
+		reader = FileSchemaReader{}
+		source = *args.schemaJson
 	}
-	return
+	if *args.schemaUrl != "" {
+		reader = HTTPSchemaReader{}
+		source = *args.schemaUrl
+	}
+
+	schema, err := reader.Read(source)
+	if err != nil {
+		panic(err)
+	}
+	return *schema
 }
