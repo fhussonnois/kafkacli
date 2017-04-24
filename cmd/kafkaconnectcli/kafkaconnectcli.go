@@ -195,8 +195,12 @@ func main() {
 	case "scale":
 		commandArgParser = ScaleArgParser
 	case "help":
-		fmt.Printf("Usage of %s: %s\nThe arguments are :\n", os.Args[2], Commands[os.Args[2]])
-		switch os.Args[2] {
+		if len(os.Args) < 3 {
+			usage()
+		}
+		subCommand := os.Args[2]
+		fmt.Printf("Usage of %s: %s\nThe arguments are :\n", subCommand, Commands[subCommand])
+		switch subCommand {
 		case "config", "status", "delete", "resume", "pause", "tasks", "restart-failed":
 			ConnectorArgParser.Flag.PrintDefaults()
 		case "create":
@@ -208,7 +212,7 @@ func main() {
 		case "delete-all", "plugins", "version":
 			CommonArgParser.Flag.PrintDefaults()
 		default:
-			fmt.Fprint(os.Stderr, "Unknown help command `"+os.Args[2]+"`.  Run '"+os.Args[0]+" help'.\n")
+			fmt.Fprint(os.Stderr, "Unknown help command `"+subCommand+"`.  Run '"+os.Args[0]+" help'.\n")
 		}
 		os.Exit(1)
 	default:

@@ -238,7 +238,12 @@ func main() {
 	case "test":
 		commandArgParser = TestCompatibilityArgParser
 	case "help":
-		switch os.Args[2] {
+		if len(os.Args) < 3 {
+			usage()
+		}
+		subCommand := os.Args[2]
+		fmt.Printf("Usage of %s: %s\nThe arguments are :\n", subCommand, Commands[subCommand])
+		switch subCommand {
 		case "subjects", "global-compatibility":
 			CommonArgParser.Flag.PrintDefaults()
 		case "versions", "compatibility":
@@ -254,7 +259,7 @@ func main() {
 		case "test":
 			TestCompatibilityArgParser.Flag.PrintDefaults()
 		default:
-			fmt.Fprint(os.Stderr, "Unknown help command `"+os.Args[2]+"`.  Run '"+os.Args[0]+" help'.\n")
+			fmt.Fprint(os.Stderr, "Unknown help command `"+subCommand+"`.  Run '"+os.Args[0]+" help'.\n")
 		}
 		os.Exit(1)
 	default:
