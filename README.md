@@ -12,20 +12,21 @@ Kafka CLI
 1. [Kafka 0.9.0.* or latest releases](http://kafka.apache.org/downloads.html)
 2. [Confluent 3.0.* or latest releases](https://www.confluent.io/download/)
 
+## How to build project ?
+
+[Go Lang](https://golang.org/doc/install) must be installed in order to build the project.
+
+You can used the command ```go get``` can be used to retrieve and build the project directly from GitHub.
+
+```bash
+go get github.com/fhussonnois/kafkacli/cmd/...
+```
+
+The script ```./release.sh``` can be used to package project tar.gz for all OS/architectures.
+
 ## Kafka Connect CLI
 
 A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.
-
-### Install and build packages
-```bash
-go get github.com/fhussonnois/kafkacli/cmd/kafkaconnectcli
-```
-
-or...
-
-```bash
-./release.sh
-```
 
 ### Run command
 ```bash
@@ -34,11 +35,11 @@ or...
 
 ### Usage
 
-```bash
+```
 A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.
 
-Usage of ./bin/kafka-connect-cli: command [arguments] 
-The commands are : 
+Usage of ./bin/kafka-connect-cli: command [arguments]
+The commands are :
 
     list            Listing active connectors on a worker.
     config          Getting connector configuration.
@@ -59,7 +60,9 @@ Use "kafka-connect-cli help [command]" for more information about that command.
 
 ```
 
-### Create new connector instance
+### Examples
+
+#### How to create a new connector instance ?
 
 A new connector configuration can be passed through either json or properties file.
 
@@ -80,14 +83,17 @@ The arguments are :
     	Pretty print json output.
 ```
 
+#### How to display all connectors with failed tasks ?
+
+Sometime it can be useful to quickly identify which connectors have failed tasks.
+
+```bash
+./kafka-connect-cli list -pretty -with-state failed
+```
+
 ## Confluent Schema registry
 
 A simple Command line interface (CLI) to manage [Confluent](http://docs.confluent.io/current/schema-registry/docs/api.html) Schema Registry.
-
-### Install and build packages
-```bash
-go get github.com/fhussonnois/kafkacli/cmd/schemaregistrycli
-```
 
 ### Run command
 ```bash
@@ -96,11 +102,11 @@ go get github.com/fhussonnois/kafkacli/cmd/schemaregistrycli
 
 ### Usage
 
-```bash
+```
 A simple Command line interface (CLI) to manage Confluent Schema Registry.
 
-Usage of ./bin/schemaregistrycli: command [arguments] 
-The commands are : 
+Usage of ./bin/schemaregistrycli: command [arguments]
+The commands are :
 
 	compatibility            Getting subject compatibility level for a subject.
 	exist                    Checking if a schema has already been registered under the specified subject
@@ -113,6 +119,16 @@ The commands are :
 	versions                 Getting a list of versions registered under the specified subject.
 
 Use "schema-registry-cli help [command]" for more information about that command.
+```
+
+### Examples
+
+#### How to retrieve only Avro schema from subject version ?
+
+The option `schema` can be used to retieve only Avro schema of given subject without the version of the SchemaRegistry.
+
+```bash
+./bin/schema-registry-cli get -pretty -schema -subject mySubject-value
 ```
 
 ## Contributions
