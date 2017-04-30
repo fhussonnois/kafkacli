@@ -59,9 +59,11 @@ func usage() {
 }
 
 const (
-	DEFAULT_HOST    = "localhost"
-	DEFAULT_PORT    = 8081
-	DEFAULT_VERSION = "latest"
+	SCHEMA_REGISTRY_HOST_ENV = "SCHEMA_REGISTRY_HOST"
+	SCHEMA_REGISTRY_PORT_ENV = "SCHEMA_REGISTRY_PORT"
+	DEFAULT_HOST             = "localhost"
+	DEFAULT_PORT             = "8081"
+	DEFAULT_VERSION          = "latest"
 )
 
 type CommandArgs struct {
@@ -138,12 +140,14 @@ func NewArgParser(name string) ArgParser {
 }
 
 func (p *ArgParser) withPortArg() *ArgParser {
-	p.Args.port = p.Flag.Int("port", DEFAULT_PORT, "The schema registry port. (Required)")
+	defaultPort, _ := strconv.Atoi(utils.GetUserLocalVarOrElse(SCHEMA_REGISTRY_PORT_ENV, DEFAULT_PORT))
+	p.Args.port = p.Flag.Int("port", defaultPort, "The schema registry port. (Required)")
 	p.addValidators(CheckNotNull{name: "port", arg: func(args CommandArgs) string { return strconv.Itoa(*args.port) }})
 	return p
 }
 func (p *ArgParser) withHostArg() *ArgParser {
-	p.Args.host = p.Flag.String("host", DEFAULT_HOST, "The schema registry hostname. (Required)")
+	defaultHost := utils.GetUserLocalVarOrElse(SCHEMA_REGISTRY_HOST_ENV, DEFAULT_HOST)
+	p.Args.host = p.Flag.String("host", defaultHost, "The schema registry hostname. (Required)")
 	p.addValidators(CheckNotNull{name: "host", arg: func(args CommandArgs) string { return *args.host }})
 	return p
 }

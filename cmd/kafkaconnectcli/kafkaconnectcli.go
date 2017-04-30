@@ -62,8 +62,10 @@ func usage() {
 }
 
 const (
-	DEFAULT_PORT = 8083
-	DEFAULT_HOST = "localhost"
+	KAFKA_CONNECT_HOST_ENV = "KAFKA_CONNECT_HOST"
+	KAFKA_CONNECT_PORT_ENV = "KAFKA_CONNECT_PORT"
+	DEFAULT_PORT           = "8083"
+	DEFAULT_HOST           = "localhost"
 )
 
 type CommandArgs struct {
@@ -112,11 +114,13 @@ func (p *ArgParser) addValidators(v Validator) {
 }
 
 func (p *ArgParser) withPortArg() *ArgParser {
-	p.Args.port = p.Flag.Int("port", DEFAULT_PORT, "The connector worker port. (Required)")
+	defaultPort, _ := strconv.Atoi(utils.GetUserLocalVarOrElse(KAFKA_CONNECT_PORT_ENV, DEFAULT_PORT))
+	p.Args.port = p.Flag.Int("port", defaultPort, "The connector worker port. (Required)")
 	return p
 }
 func (p *ArgParser) withHostArg() *ArgParser {
-	p.Args.host = p.Flag.String("host", DEFAULT_HOST, "The connector worker host address. (Required)")
+	defaultHost := utils.GetUserLocalVarOrElse(KAFKA_CONNECT_HOST_ENV, DEFAULT_HOST)
+	p.Args.host = p.Flag.String("host", defaultHost, "The connector worker host address. (Required)")
 	return p
 }
 func (p *ArgParser) withPrettyArg() *ArgParser {

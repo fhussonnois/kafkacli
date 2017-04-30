@@ -24,6 +24,41 @@ go get github.com/fhussonnois/kafkacli/cmd/...
 
 The script ```./release.sh``` can be used to package project tar.gz for all OS/architectures.
 
+## Setting defaults Host/Port for use by the CLI
+
+Setting your host/port for use by the CLI tools can be done in a number of ways, here are some approaches:
+
+* Set the HOST and PORT environment variables.
+
+  To set these variables on Linux, macOS, or Unix, use export:
+
+  ```
+  export SCHEMA_REGISTRY_HOST=your_schema_registry_host
+  export SCHEMA_REGISTRY_PORT=your_schema_registry_port
+  ```
+
+  ```
+  export KAFKA_CONNECT_HOST=your_kafka_connect_host
+  export KAFKA_CONNECT_PORT=your_kafka_connect_port
+  ```
+
+* Set the HOST and PORT in the CLI profile properties file on your local system, located at:
+  * ~/.kafkacli/host on Linux, macOS, or Unix
+
+  This file should contain lines in the following format:
+  ```
+  # Kafka Connect
+  kafka_connect_host = your_kafka_connect_host
+  kafka_connect_port = your_kafka_connect_port
+
+  # Schema Registry
+  schema_registry_host = your_schema_registry_host
+  schema_registry_port = your_schema_registry_port
+  ```
+* Set the HOST and PORT while specifying command to run :
+
+The CLI commands accept both arguments `-host` and `-port`
+
 ## Kafka Connect CLI
 
 A simple Command line interface (CLI) to manage connectors through the Kafka Connect REST Interface.
