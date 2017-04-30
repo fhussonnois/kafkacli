@@ -235,7 +235,7 @@ func main() {
 			case "status":
 				utils.PrintJson(client.Status(conn), *args.pretty)
 			case "delete":
-				client.Delete(conn)
+				deleteConnector(client, conn)
 			case "resume":
 				client.Resume(conn)
 			case "pause":
@@ -293,9 +293,9 @@ func main() {
 			}
 			name := config["name"]
 			delete(config, "name")
-			jsonConfig, _ = json.Marshal(connect.Config{Name: name, Config: config})
+			jsonConfig, _ = json.Marshal(connect.ConnectorConfig{Name: name, Config: config})
 		}
-		var config connect.Config
+		var config connect.ConnectorConfig
 		fmt.Println(string(jsonConfig))
 		err := json.Unmarshal(jsonConfig, &config)
 		if err != nil {
@@ -321,11 +321,20 @@ func main() {
 		case "delete-all":
 			matchConnectors := findMatchingConnectors(client, func(_ string) bool { return true })
 			for _, conn := range matchConnectors {
-				client.Delete(conn)
+				deleteConnector(client, conn)
 			}
 		}
 	}
 	os.Exit(0)
+}
+
+func deleteConnector(client connect.ConnectRestClient, connector string) {
+	fmt.Fprintf(os.Stdin, "\nCurrent configuration for connector %s\n\n", connector)
+	connectorTasks := client.GetConfig(connector)
+	config, _ := json.Marshal(connect.ConnectorConfig{Name: connectorTasks.Name, Config: connectorTasks.Config})
+	utils.PrintJson(string(config), true)
+	fmt.Fprint(os.Stdin, "\nSave this to use as the `-config.json` option during rollback connector\n\n")
+	client.Delete(connector)
 }
 
 func findMatchingConnectors(client connect.ConnectRestClient, fn func(string) bool) []string {

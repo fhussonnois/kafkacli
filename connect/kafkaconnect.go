@@ -24,7 +24,7 @@ import (
 )
 
 // ConnectorStatus describes the configuration of a connector and its tasks.
-type ConnectorConfig struct {
+type ConnectorTasksConfig struct {
 	Name   string            `json:"name"`
 	Config map[string]string `json:"config"`
 	Tasks  []struct {
@@ -48,7 +48,7 @@ type ConnectorStatus struct {
 	} `json:"tasks"`
 }
 
-type Config struct {
+type ConnectorConfig struct {
 	Name   string            `json:"name"`
 	Config map[string]string `json:"config"`
 }
@@ -126,9 +126,9 @@ func (client *ConnectRestClient) Tasks(connector string) string {
 
 // GetConfig retrieves the configuration for the specified connector.
 // Return a new ConnectorConfig struct.
-func (client *ConnectRestClient) GetConfig(connector string) ConnectorConfig {
+func (client *ConnectRestClient) GetConfig(connector string) ConnectorTasksConfig {
 	response := sendGetResponse("GET", client.connectEndPoint()+connector, "")
-	var config ConnectorConfig
+	var config ConnectorTasksConfig
 	err := json.Unmarshal([]byte(response), &config)
 	if err != nil {
 		panic(err)
@@ -144,8 +144,10 @@ func (client *ConnectRestClient) Pause(connector string) {
 
 // Delete deletes all tasks for the specified connector name.
 func (client *ConnectRestClient) Delete(connector string) {
-	fmt.Fprintf(os.Stdin, "Deleting connector %s \n", connector)
-	send("DELETE", client.connectEndPoint()+connector)
+	statusCode := send("DELETE", client.connectEndPoint()+connector)
+	if statusCode == 204 {
+		fmt.Fprintf(os.Stdin, "Successfully deleted connector %s \n", connector)
+	}
 }
 
 // Resume resumes all tasks for the specified connector name.
@@ -162,7 +164,7 @@ func (client *ConnectRestClient) Restart(connector string, id int) {
 
 // Create submit a new connector configuration.
 // Return a JSON string describing the new connector configuration.
-func (client *ConnectRestClient) Create(config Config) string {
+func (client *ConnectRestClient) Create(config ConnectorConfig) string {
 	body, _ := json.Marshal(config)
 	return sendGetResponse("POST", client.connectEndPoint(), string(body))
 }
@@ -186,7 +188,7 @@ func sendGetResponse(method string, url string, content string) string {
 	return string(body)
 }
 
-func send(method string, url string) {
+func send(method string, url string) (statusCode int) {
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(nil))
 
 	client := &http.Client{}
@@ -195,4 +197,7 @@ func send(method string, url string) {
 		panic(err)
 	}
 	defer resp.Body.Close()
+
+	statusCode = resp.StatusCode
+	return
 }
