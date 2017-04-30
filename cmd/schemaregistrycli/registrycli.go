@@ -181,7 +181,7 @@ func (p *ArgParser) withForceArg() *ArgParser {
 }
 
 func (p *ArgParser) withCompatibilityArg() *ArgParser {
-	values := []string{"NONE", "FULL", "Beth", "FORWARD", "BACKWARD"}
+	values := []string{"NONE", "FULL", "FORWARD", "BACKWARD"}
 	p.Args.compatibility = p.Flag.String("level", "", "The new compatibility level. Must be one of "+strings.Join(values, ",")+" (Required)")
 	p.addValidators(CheckNotNull{name: "level", arg: func(args CommandArgs) string { return *args.compatibility }})
 	p.addValidators(CheckValueIn{name: "level", arg: func(args CommandArgs) string { return *args.compatibility }, values: values})
