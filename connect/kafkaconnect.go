@@ -16,6 +16,7 @@ package connect
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -84,99 +85,126 @@ func (client *ConnectRestClient) connectEndPoint() string {
 
 // Getting a connect worker version.
 // Return JSON string.
-func (client *ConnectRestClient) Version() string {
-	return sendGetResponse("GET", client.hostname(), "")
+func (client *ConnectRestClient) Version() (r string, e error) {
+	response, e := requestAndGetResponse("GET", client.hostname(), nil)
+	if e == nil {
+		r = string(response)
+	}
+	return
 }
 
 // Plugins lists all installed connectors plugins.
 // Return the connector-plugins list as JSON string.
-func (client *ConnectRestClient) Plugins() string {
-	return sendGetResponse("GET", client.hostname()+"/connector-plugins", "")
+func (client *ConnectRestClient) Plugins() (r string, e error) {
+	response, e := requestAndGetResponse("GET", client.hostname()+"/connector-plugins", nil)
+	if e == nil {
+		r = string(response)
+	}
+	return
 }
 
 // List lists all active connectors on a worker.
 // Return the connector names as an array of string.
-func (client *ConnectRestClient) List() []string {
-	response := sendGetResponse("GET", client.connectEndPoint(), "")
-	connectors := make([]string, 0)
-	err := json.Unmarshal([]byte(response), &connectors)
-	if err != nil {
-		panic(err)
+func (client *ConnectRestClient) List() (r []string, e error) {
+	response, e := requestAndGetResponse("GET", client.connectEndPoint(), nil)
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return connectors
+	return
 }
 
 // Status gets status for a specified connector name.
 // Return a new ConnectorStatus struct.
-func (client *ConnectRestClient) Status(connector string) ConnectorStatus {
-	response := sendGetResponse("GET", client.connectEndPoint()+connector+"/status", "")
-	var connectStatus ConnectorStatus
-	err := json.Unmarshal([]byte(response), &connectStatus)
-	if err != nil {
-		panic(err)
+func (client *ConnectRestClient) Status(connector string) (r ConnectorStatus, e error) {
+	response, e := requestAndGetResponse("GET", client.connectEndPoint()+connector+"/status", nil)
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return connectStatus
+	return
 }
 
 // Tasks describes tasks for the specified connector name.
 // Return JSON string.
-func (client *ConnectRestClient) Tasks(connector string) string {
-	return sendGetResponse("GET", client.connectEndPoint()+connector+"/tasks", "")
+func (client *ConnectRestClient) Tasks(connector string) (r string, e error) {
+	response, e := requestAndGetResponse("GET", client.connectEndPoint()+connector+"/tasks", nil)
+	if e == nil {
+		r = string(response)
+	}
+	return
 }
 
 // GetConfig retrieves the configuration for the specified connector.
 // Return a new ConnectorConfig struct.
-func (client *ConnectRestClient) GetConfig(connector string) ConnectorTasksConfig {
-	response := sendGetResponse("GET", client.connectEndPoint()+connector, "")
-	var config ConnectorTasksConfig
-	err := json.Unmarshal([]byte(response), &config)
-	if err != nil {
-		panic(err)
+func (client *ConnectRestClient) GetConfig(connector string) (r ConnectorTasksConfig, e error) {
+	response, e := requestAndGetResponse("GET", client.connectEndPoint()+connector, nil)
+	if e == nil {
+		err := json.Unmarshal(response, &r)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return config
+	return
 }
 
 // Pause pauses all tasks for the specified connector name.
-func (client *ConnectRestClient) Pause(connector string) {
-	fmt.Fprintf(os.Stdin, "Pausing connector %s \n", connector)
-	send("PUT", client.connectEndPoint()+connector+"/pause")
+func (client *ConnectRestClient) Pause(connector string) error {
+	_, e := requestAndGetResponse("PUT", client.connectEndPoint()+connector+"/pause", nil)
+	return e
 }
 
 // Delete deletes all tasks for the specified connector name.
-func (client *ConnectRestClient) Delete(connector string) {
-	statusCode := send("DELETE", client.connectEndPoint()+connector)
-	if statusCode == 204 {
-		fmt.Fprintf(os.Stdin, "Successfully deleted connector %s \n", connector)
-	}
+func (client *ConnectRestClient) Delete(connector string) error {
+	_, e := requestAndGetResponse("DELETE", client.connectEndPoint()+connector, nil)
+	return e
 }
 
 // Resume resumes all tasks for the specified connector name.
-func (client *ConnectRestClient) Resume(connector string) {
-	fmt.Fprintf(os.Stdin, "Resuming connector %s \n", connector)
-	send("PUT", client.connectEndPoint()+connector+"/resume")
+func (client *ConnectRestClient) Resume(connector string) error {
+	_, e := requestAndGetResponse("PUT", client.connectEndPoint()+connector+"/resume", nil)
+	return e
 }
 
 // Restart restarts the task identified by ID int for the specified connector.
-func (client *ConnectRestClient) Restart(connector string, id int) {
+func (client *ConnectRestClient) Restart(connector string, id int) error {
 	fmt.Fprintf(os.Stdin, "Restarting task %d for connector %s \n", id, connector)
-	send("POST", client.connectEndPoint()+connector+"/tasks/"+strconv.Itoa(id)+"/restart")
+	_, e := requestAndGetResponse("POST", client.connectEndPoint()+connector+"/tasks/"+strconv.Itoa(id)+"/restart", nil)
+	return e
 }
 
 // Create submit a new connector configuration.
 // Return a JSON string describing the new connector configuration.
-func (client *ConnectRestClient) Create(config ConnectorConfig) string {
-	body, _ := json.Marshal(config)
-	return sendGetResponse("POST", client.connectEndPoint(), string(body))
+func (client *ConnectRestClient) Create(config ConnectorConfig) (r string, e error) {
+	bytes, _ := json.Marshal(config)
+	body := string(bytes)
+	response, e := requestAndGetResponse("POST", client.connectEndPoint(), &body)
+	if e == nil {
+		r = string(response)
+	}
+	return
 }
 
 // Update modifies the configuration for the specified connector name.
 // Return a JSON string describing the new connector configuration.
-func (client *ConnectRestClient) Update(connector string, config string) string {
-	return sendGetResponse("PUT", client.connectEndPoint()+connector+"/config", config)
+func (client *ConnectRestClient) Update(connector string, config string) (r string, e error) {
+	response, e := requestAndGetResponse("PUT", client.connectEndPoint()+connector+"/config", &config)
+	if e == nil {
+		r = string(response)
+	}
+	return
 }
 
-func sendGetResponse(method string, url string, content string) string {
-	req, err := http.NewRequest(method, url, bytes.NewBufferString(content))
+func requestAndGetResponse(method string, url string, content * string) ([]byte, error) {
+	var reqBody []byte = nil
+	if (content != nil) {
+		reqBody = []byte(*content)
+	}
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(reqBody))
 	req.Header.Add("Content-Type", `application/json`)
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -185,19 +213,10 @@ func sendGetResponse(method string, url string, content string) string {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	return string(body)
-}
 
-func send(method string, url string) (statusCode int) {
-	req, err := http.NewRequest(method, url, bytes.NewBuffer(nil))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		panic(err)
+	if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
+		return nil, errors.New(string(body))
 	}
-	defer resp.Body.Close()
 
-	statusCode = resp.StatusCode
-	return
+	return body, nil
 }

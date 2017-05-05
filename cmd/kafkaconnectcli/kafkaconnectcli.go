@@ -228,125 +228,210 @@ func main() {
 
 	client := connect.NewConnectClient(*args.host, *args.port)
 
+	var err error
+	var result interface{}
+
 	if ConnectorArgParser.Flag.Parsed() {
-		connector := *args.connector
-		connectRegex := regexp.MustCompile(connector)
-		matchConnectors := findMatchingConnectors(client, func(conn string) bool { return connectRegex.MatchString(conn) })
-		for _, conn := range matchConnectors {
+		result, err = handleConnectorCommands(client, command, *args.connector)
+	}
+
+	if ListArgParser.Flag.Parsed() {
+		result, err = handleListCommand(client, *args.state)
+	}
+
+	if CreateArgParser.Flag.Parsed() {
+		result, err = handleCreateCommand(client, args)
+	}
+
+	if ScaleArgParser.Flag.Parsed() {
+		result, err = handleScaleCommand(client, *args.connector, *args.tasks)
+	}
+
+	if CommonArgParser.Flag.Parsed() {
+		result, err = handleCommonsCommand(command, client)
+	}
+	printOutputAndExit(result, err, *args.pretty)
+}
+
+// handleConnectorCommands executes all connectors commands.
+func handleConnectorCommands(client connect.ConnectRestClient, command string, connector string) (result interface{}, e error) {
+	connectRegex := regexp.MustCompile(connector)
+	matches, e := findMatchingConnectors(client, func(conn string) (bool, error) { return connectRegex.MatchString(conn), nil })
+	if e == nil {
+		if len(matches) == 0 {
+			fmt.Fprintf(os.Stdin, "No matching connector found for '%s' \n", connector)
+		}
+		for _, conn := range matches {
 			switch command {
 			case "config":
-				utils.PrintJson(client.GetConfig(conn), *args.pretty)
+				result, e = client.GetConfig(conn)
 			case "status":
-				utils.PrintJson(client.Status(conn), *args.pretty)
+				result, e = client.Status(conn)
 			case "delete":
-				deleteConnector(client, conn)
+				e = deleteConnector(client, conn)
 			case "resume":
-				client.Resume(conn)
+				e = client.Resume(conn)
+				if e == nil {
+					fmt.Fprintf(os.Stdin, "Successfully resumed connector %s \n", conn)
+				}
 			case "pause":
-				client.Pause(conn)
+				e = client.Pause(conn)
+				if e == nil {
+					fmt.Fprintf(os.Stdin, "Successfully paused connector %s \n", conn)
+				}
 			case "tasks":
-				utils.PrintJson(client.Tasks(conn), *args.pretty)
+				result, e = client.Tasks(conn)
 			case "restart-failed":
-				status := client.Status(conn)
-				for _, task := range status.Tasks {
-					if task.State == "FAILED" {
-						client.Restart(status.Name, task.ID)
+				status, e := client.Status(conn)
+				if e == nil {
+					for _, task := range status.Tasks {
+						if task.State == "FAILED" {
+							client.Restart(status.Name, task.ID)
+						}
 					}
 				}
 			}
 		}
 	}
+	return
+}
 
-	if ListArgParser.Flag.Parsed() {
-		state := strings.ToUpper(*args.state)
-		switch state {
-		case "RUNNING", "FAILED", "PAUSED", "UNASSIGNED":
-			connectors := findMatchingConnectors(client, func(conn string) bool {
-				status := client.Status(conn)
-				res := status.Connector.State == state
-				for _, task := range status.Tasks {
-					res = res || task.State == state
-				}
-				return res
-			})
-			utils.PrintJson(connectors, *args.pretty)
+// handleListCommand executes "list" command.
+func handleListCommand(client connect.ConnectRestClient, state string) (result interface{}, e error) {
+	state = strings.ToUpper(state)
+	switch state {
+	case "RUNNING", "FAILED", "PAUSED", "UNASSIGNED":
+		result, e = findMatchingConnectors(client, func(conn string) (bool, error) {
+			status, e := client.Status(conn)
+			if e != nil {
+				return false, e
+			}
 
-		default:
-			utils.PrintJson(client.List(), *args.pretty)
-		}
+			res := status.Connector.State == state
+			for _, task := range status.Tasks {
+				res = res || task.State == state
+			}
+			return res, nil
+		})
+	default:
+		result, e = client.List()
 	}
+	return
+}
 
-	if CreateArgParser.Flag.Parsed() {
-		var jsonConfig []byte
-		if *args.json != "" {
-			jsonConfig = []byte(*args.json)
-		}
-		if *args.jsonFile != "" {
-			file, err := ioutil.ReadFile(*args.jsonFile)
-			if err != nil {
-				fmt.Fprint(os.Stderr, "Error while reading config file %s error: %v\n", *args.jsonFile, err)
-				os.Exit(1)
-			}
-			jsonConfig = file
-		}
-		if *args.propsFile != "" {
-			config, err := utils.ReadProps(*args.propsFile)
-			if err != nil {
-				fmt.Fprint(os.Stderr, "Error while reading config file %s error: %v\n", *args.jsonFile, err)
-				os.Exit(1)
-			}
-			name := config["name"]
-			delete(config, "name")
-			jsonConfig, _ = json.Marshal(connect.ConnectorConfig{Name: name, Config: config})
-		}
-		var config connect.ConnectorConfig
-		fmt.Println(string(jsonConfig))
-		err := json.Unmarshal(jsonConfig, &config)
+// handleCreateCommand executes "create" command.
+func handleCreateCommand(client connect.ConnectRestClient, args CommandArgs) (result interface{}, e error) {
+	var jsonConfig []byte
+
+	jsonString := *args.json
+	if jsonString != "" {
+		jsonConfig = []byte(jsonString)
+	}
+	jsonFile := *args.jsonFile
+	if jsonFile != "" {
+		file, err := ioutil.ReadFile(jsonFile)
 		if err != nil {
-			fmt.Fprint(os.Stderr, "Invalid configuration - error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error while reading config file '%s': %v\n", jsonFile, err)
 			os.Exit(1)
 		}
-		utils.PrintJson(client.Create(config), *args.pretty)
+		jsonConfig = file
 	}
-
-	if ScaleArgParser.Flag.Parsed() {
-		config := client.GetConfig(*args.connector)
-		config.Config["tasks.max"] = strconv.Itoa(*args.tasks)
-		jsonConfig, _ := json.Marshal(config.Config)
-		utils.PrintJson(client.Update(*args.connector, string(jsonConfig)), *args.pretty)
+	propsFile := *args.propsFile
+	if propsFile != "" {
+		config, err := utils.ReadProps(propsFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error while reading config file '%s': %v\n", propsFile, err)
+			os.Exit(1)
+		}
+		name := config["name"]
+		delete(config, "name")
+		jsonConfig, _ = json.Marshal(connect.ConnectorConfig{Name: name, Config: config})
 	}
+	var config connect.ConnectorConfig
+	err := json.Unmarshal(jsonConfig, &config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid configuration - error: %v\n", err)
+		os.Exit(1)
+	}
+	result, e = client.Create(config)
+	return
+}
 
-	if CommonArgParser.Flag.Parsed() {
-		switch command {
-		case "version":
-			utils.PrintJson(client.Version(), *args.pretty)
-		case "plugins":
-			utils.PrintJson(client.Plugins(), *args.pretty)
-		case "delete-all":
-			matchConnectors := findMatchingConnectors(client, func(_ string) bool { return true })
-			for _, conn := range matchConnectors {
-				deleteConnector(client, conn)
+// handleScaleCommand executes "scale" command.
+func handleScaleCommand(client connect.ConnectRestClient, connector string, tasks int) (result interface{}, e error) {
+	config, err := client.GetConfig(connector)
+	if err != nil {
+		return nil, err
+	}
+	config.Config["tasks.max"] = strconv.Itoa(tasks)
+	jsonConfig, _ := json.Marshal(config.Config)
+
+	result, e = client.Update(connector, string(jsonConfig))
+	return
+}
+
+// handleCommonsCommand executes either "version", "plugin" or "delete-all" commands.
+func handleCommonsCommand(command string, client connect.ConnectRestClient) (result interface{}, e error) {
+	switch command {
+	case "version":
+		result, e = client.Version()
+	case "plugins":
+		result, e = client.Plugins()
+	case "delete-all":
+		connectors, e := client.List()
+		if e == nil {
+			for _, conn := range connectors {
+				e = deleteConnector(client, conn)
+				if e != nil {
+					break
+				}
 			}
 		}
 	}
-	os.Exit(0)
+	return
 }
 
-func deleteConnector(client connect.ConnectRestClient, connector string) {
-	fmt.Fprintf(os.Stdin, "\nCurrent configuration for connector %s\n\n", connector)
-	connectorTasks := client.GetConfig(connector)
-	config, _ := json.Marshal(connect.ConnectorConfig{Name: connectorTasks.Name, Config: connectorTasks.Config})
-	utils.PrintJson(string(config), true)
-	fmt.Fprint(os.Stdin, "\nSave this to use as the `-config.json` option during rollback connector\n\n")
-	client.Delete(connector)
-}
-
-func findMatchingConnectors(client connect.ConnectRestClient, fn func(string) bool) []string {
-	var matchConnectors []string
-	for _, conn := range client.List() {
-		if fn(conn) {
-			matchConnectors = append(matchConnectors, conn)
+func deleteConnector(client connect.ConnectRestClient, connector string) (e error) {
+	connectorTasks, e := client.GetConfig(connector)
+	if e == nil {
+		fmt.Fprintf(os.Stdin, "\nCurrent configuration for connector %s\n\n", connector)
+		config, _ := json.Marshal(connect.ConnectorConfig{Name: connectorTasks.Name, Config: connectorTasks.Config})
+		utils.PrintJson(string(config), true)
+		fmt.Fprint(os.Stdin, "\nSave this to use as the `-config.json` option during rollback connector\n\n")
+		e = client.Delete(connector)
+		if e == nil {
+			fmt.Fprintf(os.Stdin, "Successfully deleted connector %s \n", connector)
 		}
 	}
-	return matchConnectors
+	return
+}
+
+type Matcher func(connectorName string) (bool, error)
+
+func findMatchingConnectors(client connect.ConnectRestClient, matcher Matcher) (connectors []string, e error) {
+	list, e := client.List()
+	if e == nil {
+		for _, conn := range list {
+			matches, e := matcher(conn)
+			if e != nil {
+				break
+			}
+			if matches {
+				connectors = append(connectors, conn)
+			}
+		}
+	}
+	return
+}
+
+func printOutputAndExit(result interface{}, err error, pretty bool) {
+	if err != nil {
+		utils.PrintJson(err.Error(), pretty)
+		os.Exit(1)
+	}
+
+	if result != nil {
+		utils.PrintJson(result, pretty)
+		os.Exit(0)
+	}
 }

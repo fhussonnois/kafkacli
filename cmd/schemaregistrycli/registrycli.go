@@ -284,18 +284,10 @@ func main() {
 		switch command {
 		case "subjects":
 			res, err := client.Subjects()
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
+			printOutput(res, err, *args.pretty)
 		case "global-compatibility":
 			res, err := client.GetGlobalCompatibility()
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
+			printOutput(res, err, *args.pretty)
 
 		}
 	}
@@ -303,18 +295,10 @@ func main() {
 		switch command {
 		case "versions":
 			res, err := client.Versions(*args.subject)
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
+			printOutput(res, err, *args.pretty)
 		case "compatibility":
 			res, err := client.GetSubjectCompatibility(*args.subject)
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
+			printOutput(res, err, *args.pretty)
 		}
 	}
 	if RegisterArgParser.Flag.Parsed() {
@@ -333,11 +317,7 @@ func main() {
 			}
 
 			res, err := client.Register(*args.subject, schema)
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
+			printOutput(res, err, *args.pretty)
 
 			if *args.force && len(compatibilityLevel) > 0 && compatibilityLevel != "NONE" {
 				client.UpdateSubjectCompatibility(*args.subject, registry.Compatibility{Value: compatibilityLevel})
@@ -349,25 +329,21 @@ func main() {
 		case "exists":
 			schema := evaluateSchemaArg(args)
 			res, err := client.Exists(*args.subject, schema)
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
+			printOutput(res, err, *args.pretty)
 		}
 	}
 	if SchemaArgParser.Flag.Parsed() {
 		switch command {
 		case "get":
 			version, err := client.GetSubjectVersion(*args.subject, *args.version)
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else if *args.isSchema {
-				s := strings.Replace(version.Schema, "\\", "", -1)
-				utils.PrintJson(s, *args.pretty)
+
+			res := version
+			if *args.isSchema && err == nil {
+				printOutput(strings.Replace(version.Schema, "\\", "", -1), err, *args.pretty)
 			} else {
-				utils.PrintJson(version, *args.pretty)
+				printOutput(res, err, *args.pretty)
 			}
+
 		}
 	}
 	if TestCompatibilityArgParser.Flag.Parsed() {
@@ -375,26 +351,23 @@ func main() {
 		case "test":
 			schema := evaluateSchemaArg(args)
 			res, err := client.CheckSubjectCompatibility(*args.subject, *args.version, schema)
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
+			printOutput(res, err, *args.pretty)
 		}
 	}
 	if CompatibilityArgParser.Flag.Parsed() {
-		switch command {
-		case "set-compatibility":
-			compatibility := registry.Compatibility{Value: *args.compatibility}
-			res, err := client.UpdateSubjectCompatibility(*args.subject, compatibility)
-			if err != nil {
-				utils.PrintJson(err.Error(), *args.pretty)
-			} else {
-				utils.PrintJson(res, *args.pretty)
-			}
-		}
+		res, err := handleCompatibilityCommand(client, command, *args.subject, *args.compatibility)
+		printOutput(res, err, *args.pretty)
 	}
 	os.Exit(0)
+}
+
+// handleCompatibilityCommand execute "set-compatibility" command.
+func handleCompatibilityCommand(client registry.SchemaRegistryRestClient, command string, subject string, compatibility string) (res interface{}, e error) {
+	switch command {
+	case "set-compatibility":
+		res, e = client.UpdateSubjectCompatibility(subject, registry.Compatibility{Value: compatibility})
+	}
+	return
 }
 
 // Default interface to read a JSON Schema
@@ -426,6 +399,14 @@ func (reader FileSchemaReader) Read(source string) (*registry.Schema, error) {
 // HTTPSchemaReader implementation  to read Schema from file string.
 type HTTPSchemaReader struct {
 	JsonReader JSONSchemaReader
+}
+
+func printOutput(result interface{}, err error, pretty bool) {
+	if err != nil {
+		utils.PrintJson(err.Error(), pretty)
+	} else {
+		utils.PrintJson(result, pretty)
+	}
 }
 
 func (reader HTTPSchemaReader) Read(source string) (*registry.Schema, error) {
