@@ -42,7 +42,7 @@ func ReadProps(filename string) (map[string]string, error) {
 		if len(line) == 0 || strings.HasPrefix(line, "#") {
 			continue
 		}
-		pairs := strings.Split(strings.TrimSpace(line), "=")
+		pairs := strings.SplitN(line, "=", 2)
 		value := ""
 		key := pairs[0]
 		if len(pairs) == 2 {
