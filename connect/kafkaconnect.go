@@ -191,8 +191,10 @@ func (client *ConnectRestClient) Create(config ConnectorConfig) (r string, e err
 
 // Update modifies the configuration for the specified connector name.
 // Return a JSON string describing the new connector configuration.
-func (client *ConnectRestClient) Update(connector string, config string) (r string, e error) {
-	response, e := requestAndGetResponse("PUT", client.connectEndPoint()+connector+"/config", &config)
+func (client *ConnectRestClient) Update(config ConnectorConfig) (r string, e error) {
+	bytes, _ := json.Marshal(config.Config)
+	body := string(bytes)
+	response, e := requestAndGetResponse("PUT", client.connectEndPoint()+config.Name+"/config", &body)
 	if e == nil {
 		r = string(response)
 	}
