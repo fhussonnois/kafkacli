@@ -158,12 +158,48 @@ Use "schema-registry-cli help [command]" for more information about that command
 
 ### Examples
 
+#### How to register schema from URL ?
+
+```bash
+./bin/schema-registry-cli register -schema.url https://gist.githubusercontent.com/fhussonnois/e2d0d279dfa82ac038bd5776fe2486ae/raw/735ee897dac24e6c43cd1b5c4c84766701ed2c88/user.avsc \
+-subject user -pretty
+
+{
+    "id": 1
+}
+```
 #### How to retrieve only Avro schema from subject version ?
 
 The option `schema` can be used to retieve only Avro schema of given subject without the version of the SchemaRegistry.
 
 ```bash
-./bin/schema-registry-cli get -pretty -schema -subject mySubject-value
+./bin/schema-registry-cli get -pretty -schema -subject user
+
+{
+    "fields": [
+        {
+            "name": "name",
+            "type": "string"
+        },
+        {
+            "name": "favorite_number",
+            "type": [
+                "int",
+                "null"
+            ]
+        },
+        {
+            "name": "favorite_color",
+            "type": [
+                "string",
+                "null"
+            ]
+        }
+    ],
+    "name": "User",
+    "namespace": "example.avro",
+    "type": "record"
+}
 ```
 
 ## Contributions
